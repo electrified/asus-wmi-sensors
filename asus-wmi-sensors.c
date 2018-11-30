@@ -1,10 +1,10 @@
-#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
-
-#include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/init.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/mutex.h>
+#include <linux/platform_device.h>
 #include <linux/wmi.h>
 
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
@@ -13,12 +13,12 @@ MODULE_LICENSE("GPL");
 
 #define ASUS_HW_GUID "466747A0-70EC-11DE-8A39-0800200C9A66"
 
-#define sensor_get_value     1381451075
-#define sensor_update_buffer     1364673859
-#define sensor_get_info     1347896643
-#define sensor_get_number     1347896690
-#define sensor_get_buffer_address     1347896691
-#define sensor_get_version     1347896692
+#define METHODID_SENSOR_GET_VALUE     		0x52574543
+#define METHODID_SENSOR_UPDATE_BUFFER     	0x51574543
+#define METHODID_SENSOR_GET_INFO     		0x50574543
+#define METHODID_SENSOR_GET_NUMBER     		0x50574572
+#define METHODID_SENSOR_GET_BUFFER_ADDRESS  0x50574573
+#define METHODID_SENSOR_GET_VERSION     	0x50574574
 
 #define ASUS_WMI_MAX_STR_SIZE	32
 
@@ -56,23 +56,29 @@ struct asus_wmi_sensor_info {
 };
 
 struct asus_wmi_sensors {
-	struct wmi_device *wdev;
-	struct wmi_driver *wmi_driver;
+	struct platform_driver	platform_driver;
+	struct platform_device *platform_device;
 
+	u8 buffer;
+	struct mutex lock;
 	const struct asus_wmi_sensor_info **info[hwmon_max];
 };
 
+/*
+ * Universal method for calling WMI method
+ * @method_id: 
+ * @args:
+ * @output:
+ */
 static int asus_wmi_call_method(u32 method_id, u32 *args, struct acpi_buffer *output) 
 {
 	struct acpi_buffer input = {(acpi_size) sizeof(*args), args };
 
 	acpi_status status;
-
 	status = wmi_evaluate_method(ASUS_HW_GUID,
 				     0,
 					 method_id,
 				     &input, output);
-
 	if (ACPI_FAILURE(status)) {
 		return -EIO;
 	}
@@ -84,7 +90,7 @@ static int get_version(u32 *version)
 {
 	u32 args[] = {0, 0, 0};
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
-	int status = asus_wmi_call_method(sensor_get_version, args, &output);
+	int status = asus_wmi_call_method(METHODID_SENSOR_GET_VERSION, args, &output);
 
 	if (!status) {
 		union acpi_object *obj = (union acpi_object *)output.pointer;
@@ -100,7 +106,7 @@ static int get_item_count(u32 *count)
 {
 	u32 args[] = {0, 0, 0};
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
-	int status = asus_wmi_call_method(sensor_get_number, args, &output);
+	int status = asus_wmi_call_method(METHODID_SENSOR_GET_NUMBER, args, &output);
 
 	if (!status) {
 		union acpi_object *obj = (union acpi_object *)output.pointer;
@@ -119,7 +125,7 @@ static int info(int index, struct asus_wmi_sensor_info *s)
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
 	union acpi_object *obj;
 
-	int status = asus_wmi_call_method(sensor_get_info, args, &output);
+	int status = asus_wmi_call_method(METHODID_SENSOR_GET_INFO, args, &output);
 
 	if (!status) {
 		s->id = index;
@@ -136,7 +142,6 @@ static int info(int index, struct asus_wmi_sensor_info *s)
 				return 1;
 			}
 			strncpy(s->name, name_obj.string.pointer, sizeof s->name - 1);
-			// u32 length = sub_obj.string.length;
 
 			data_type_obj = obj->package.elements[1];
 
@@ -170,18 +175,18 @@ static int info(int index, struct asus_wmi_sensor_info *s)
 	return status;
 }
 
-static int update_buffer(int source)
+static int update_buffer(u8 source)
 {
 	u32 args[] = {source, 0};
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
-	return asus_wmi_call_method(sensor_update_buffer, args, &output);
+	return asus_wmi_call_method(METHODID_SENSOR_UPDATE_BUFFER, args, &output);
 }
 
-static int getValue(int index, u32 *value)
+static int get_sensor_value(u8 index, u32 *value)
 {
 	u32 args[] = {index, 0};
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
-	int status = asus_wmi_call_method(sensor_get_value, args, &output);
+	int status = asus_wmi_call_method(METHODID_SENSOR_GET_VALUE, args, &output);
 
 	if (!status) {
 		union acpi_object *obj = (union acpi_object *)output.pointer;
@@ -193,6 +198,10 @@ static int getValue(int index, u32 *value)
 	return status;
 }
 
+/* 
+ * Now follow the functions that implement the hwmon interface
+ */
+
 static int asus_wmi_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 			   u32 attr, int channel, long *val)
 {
@@ -203,15 +212,39 @@ static int asus_wmi_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 	struct asus_wmi_sensors *asus_wmi_sensors = dev_get_drvdata(dev);
 
 	sensor = *(asus_wmi_sensors->info[type] + channel);
-	ret = update_buffer(sensor->source);
 
-	if (ret)
-		return ret;
+	mutex_lock(&asus_wmi_sensors->lock);
+	if (asus_wmi_sensors->buffer != sensor->source) {
+		//pr_debug("updating buffer... from %u to %u\n", asus_wmi_sensors->buffer, sensor->source);
+		ret = update_buffer(sensor->source);
 
-	ret = getValue(sensor->id, &value);
+		if (ret) {
+			pr_err("update_buffer failure\n");
+			mutex_unlock(&asus_wmi_sensors->lock);
+			return -EIO;
+		}
+		asus_wmi_sensors->buffer = sensor->source;
+	}
 
-	if (!ret)
-		*val = value;
+	ret = get_sensor_value(sensor->id, &value);
+	mutex_unlock(&asus_wmi_sensors->lock);
+
+	if (!ret) {
+		switch (sensor->data_type) {
+		case VOLTAGE:
+			*val = DIV_ROUND_CLOSEST(value, 1000);
+			break;
+		case TEMPERATURE_C:
+			*val = value * 1000;
+			break;
+		case CURRENT:
+			*val = value * 1000;
+			break;
+		case FAN_RPM:
+		case WATER_FLOW:
+			*val = value;
+		}
+	}
 
 	return ret;
 }
@@ -240,16 +273,6 @@ asus_wmi_hwmon_is_visible(const void *drvdata, enum hwmon_sensor_types type,
 	if (sensor && sensor->name)
 		return S_IRUGO;
 
-	return 0;
-}
-
-static int asus_wmi_sensors_remove(struct wmi_device *wdev)
-{
-	struct asus_wmi_sensors *asus;
-
-	asus = dev_get_drvdata(&wdev->dev);
-
-	// kfree(asus);
 	return 0;
 }
 
@@ -282,39 +305,33 @@ static struct hwmon_chip_info asus_wmi_chip_info = {
 	.info = NULL,
 };
 
-static int asus_wmi_sensors_probe(struct wmi_device *wdev)
+static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 {
-	struct wmi_driver *wdrv = container_of(wdev->dev.driver, struct wmi_driver, driver);
-	struct asus_wmi_sensors *asus_wmi_sensors;
 	int err;
 	int i, idx;
 	int nr_count[hwmon_max] = {0}, nr_types = 0;
 	u32 nr_sensors = 0;
-	struct device *hwdev, *dev = &wdev->dev;
+	struct device *hwdev, *dev = &asus_wmi_sensors->platform_device->dev;
+
 	struct hwmon_channel_info *asus_wmi_hwmon_chan;
 	struct asus_wmi_sensor_info *temp_sensor;
 	enum hwmon_sensor_types type;
 	const struct hwmon_channel_info **ptr_asus_wmi_ci;
 	const struct hwmon_chip_info *chip_info;
 
-	asus_wmi_sensors = devm_kzalloc(dev, sizeof(struct asus_wmi_sensors), GFP_KERNEL);
-	if (!asus_wmi_sensors)
-		return -ENOMEM;
+	asus_wmi_sensors->buffer = -1;
+	mutex_init(&asus_wmi_sensors->lock);
 
-	asus_wmi_sensors->wmi_driver = wdrv;
-	asus_wmi_sensors->wdev = wdev;
-
-	dev_set_drvdata(&wdev->dev, asus_wmi_sensors);
 
 	temp_sensor = devm_kcalloc(dev, 1, sizeof(*temp_sensor), GFP_KERNEL);
 	if (!temp_sensor) {
-		pr_info("Alloc fail\n");
+		pr_err("Alloc fail\n");
 		return -ENOMEM;
 	}
 
 	get_item_count(&nr_sensors);
 	
-	pr_info("item count %u\n", nr_sensors);
+	pr_info("sensor count %u\n", nr_sensors);
 
 	for (i = 0; i < nr_sensors; i++) {
 		err = info(i, temp_sensor);
@@ -354,7 +371,6 @@ static int asus_wmi_sensors_probe(struct wmi_device *wdev)
 	for (type = 0; type < hwmon_max; type++) {
 		if (!nr_count[type])
 			continue;
-		pr_info("setting type info for type %u count %u \n", type, nr_count[type]);
 
 		asus_wmi_hwmon_add_chan_info(asus_wmi_hwmon_chan, dev, nr_count[type],
 					 type, hwmon_attributes[type]);
@@ -369,17 +385,17 @@ static int asus_wmi_sensors_probe(struct wmi_device *wdev)
 	for (i = nr_sensors - 1; i >= 0 ; i--) {
 		temp_sensor = devm_kzalloc(dev, sizeof(*temp_sensor), GFP_KERNEL);
 		if (!temp_sensor) {
-			pr_info("Alloc fail\n");
+			pr_err("Alloc fail\n");
 			return -ENOMEM;
 		}
 
 		err = info(i, temp_sensor);
 		if (err) {
-			pr_info("sensor error\n");
+			pr_err("sensor error\n");
 			continue;
 		}
 
-		pr_info("setting sensor info\n");
+		pr_debug("setting sensor info\n");
 
 		switch (temp_sensor->data_type) {
 		case TEMPERATURE_C:
@@ -401,18 +417,84 @@ static int asus_wmi_sensors_probe(struct wmi_device *wdev)
 	return PTR_ERR_OR_ZERO(hwdev);
 }
 
-static const struct wmi_device_id asus_wmi_sensors_id_table[] = {
-	{ .guid_string = ASUS_HW_GUID },
-	{ },
-};
+static bool used;
 
-static struct wmi_driver asus_wmi_sensors = {
+static struct platform_device *asus_wmi_sensors_platform_device;
+
+static int asus_wmi_probe(struct platform_device *pdev)
+{
+	u32 version = 0;
+
+	if (!wmi_has_guid(ASUS_HW_GUID)) {
+		pr_info("Asus Management GUID not found\n");
+		return -ENODEV;
+	}
+
+	if(get_version(&version)) {
+		pr_err("Error getting version\n");
+		return -ENODEV;
+	}
+
+	if(version != 2) {
+		pr_err("Unsupported ASUSHW version\n");
+		return -ENODEV;
+	}
+
+	pr_info("ASUS WMI sensors driver loaded\n");
+	return 0;
+}
+
+static int asus_wmi_remove(struct platform_device *device)
+{
+	struct asus_wmi_sensors *asus;
+
+	asus = platform_get_drvdata(device);
+
+	kfree(asus);
+	return 0;
+}
+
+static struct platform_driver asus_wmi_sensors_platform_driver = {
 	.driver = {
-		.name = "asus-wmi-sensors",
+		.name	= "asushwwmi",
 	},
-	.probe = asus_wmi_sensors_probe,
-	.remove = asus_wmi_sensors_remove,
-	.id_table = asus_wmi_sensors_id_table,
+	.probe		= asus_wmi_probe,
+	.remove		= asus_wmi_remove,
 };
 
-module_wmi_driver(asus_wmi_sensors);
+static int __init asus_wmi_init(void)
+{
+	struct asus_wmi_sensors *asus_wmi_sensors;
+
+	if (used)
+		return -EBUSY;
+
+	asus_wmi_sensors_platform_device = platform_create_bundle(&asus_wmi_sensors_platform_driver,
+						 asus_wmi_probe,
+						 NULL, 0, NULL, 0);
+
+	if (IS_ERR(asus_wmi_sensors_platform_device))
+		return PTR_ERR(asus_wmi_sensors_platform_device);
+
+	asus_wmi_sensors = devm_kzalloc(&asus_wmi_sensors_platform_device->dev, sizeof(struct asus_wmi_sensors), GFP_KERNEL);
+	if (!asus_wmi_sensors)
+		return -ENOMEM;
+
+	asus_wmi_sensors->platform_device = asus_wmi_sensors_platform_device;
+	asus_wmi_sensors->platform_driver = asus_wmi_sensors_platform_driver;
+
+	platform_set_drvdata(asus_wmi_sensors->platform_device, asus_wmi_sensors);
+	
+	used = true;
+
+	return configure_sensor_setup(asus_wmi_sensors);
+}
+
+static void __exit asus_wmi_exit(void)
+{
+	platform_device_unregister(asus_wmi_sensors_platform_device);
+	platform_driver_unregister(&asus_wmi_sensors_platform_driver);
+}
+
+module_init(asus_wmi_init);
+module_exit(asus_wmi_exit);
