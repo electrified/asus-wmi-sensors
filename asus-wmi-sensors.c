@@ -1,17 +1,31 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Asus WMI sensors HWMON driver
+ *
+ * Copyright (C) 2018 Ed Brindley <kernel@maidavale.org>
+ */
+
+#include <linux/dmi.h>
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/platform_device.h>
 #include <linux/wmi.h>
 
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
 MODULE_DESCRIPTION("Asus WMI Sensors Driver");
 MODULE_LICENSE("GPL");
+MODULE_VERSION("0.0.1");
 
 #define ASUS_HW_GUID "466747A0-70EC-11DE-8A39-0800200C9A66"
+
+#define CROSSHAIR_6 "ROG CROSSHAIR VI HERO"
+#define CROSSHAIR_6_WIFI "ROG CROSSHAIR VI HERO (WI-FI)"
+#define CROSSHAIR_7 "ROG CROSSHAIR VII HERO"
+#define CROSSHAIR_7_WIFI "ROG CROSSHAIR VII HERO (WI-FI)"
+// #define ZENITH_EXTREME "ROG CROSSHAIR VII HERO (WI-FI)"
 
 #define METHODID_SENSOR_GET_VALUE     		0x52574543
 #define METHODID_SENSOR_UPDATE_BUFFER     	0x51574543
@@ -56,8 +70,8 @@ struct asus_wmi_sensor_info {
 };
 
 struct asus_wmi_sensors {
-	struct platform_driver	platform_driver;
-	struct platform_device *platform_device;
+	struct wmi_driver wmi_driver;
+	struct wmi_device *wmi_device;
 
 	u8 buffer;
 	struct mutex lock;
@@ -311,7 +325,7 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	int i, idx;
 	int nr_count[hwmon_max] = {0}, nr_types = 0;
 	u32 nr_sensors = 0;
-	struct device *hwdev, *dev = &asus_wmi_sensors->platform_device->dev;
+	struct device *hwdev, *dev = &asus_wmi_sensors->wmi_device->dev;
 
 	struct hwmon_channel_info *asus_wmi_hwmon_chan;
 	struct asus_wmi_sensor_info *temp_sensor;
@@ -322,7 +336,6 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	asus_wmi_sensors->buffer = -1;
 	mutex_init(&asus_wmi_sensors->lock);
 
-
 	temp_sensor = devm_kcalloc(dev, 1, sizeof(*temp_sensor), GFP_KERNEL);
 	if (!temp_sensor) {
 		pr_err("Alloc fail\n");
@@ -331,7 +344,7 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 
 	get_item_count(&nr_sensors);
 	
-	pr_info("sensor count %u\n", nr_sensors);
+	pr_debug("sensor count %u\n", nr_sensors);
 
 	for (i = 0; i < nr_sensors; i++) {
 		err = info(i, temp_sensor);
@@ -417,84 +430,75 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	return PTR_ERR_OR_ZERO(hwdev);
 }
 
-static bool used;
-
-static struct platform_device *asus_wmi_sensors_platform_device;
-
-static int asus_wmi_probe(struct platform_device *pdev)
-{
+static int is_board_supported(void) {
+	const char *board_vendor, *board_name;
 	u32 version = 0;
 
-	if (!wmi_has_guid(ASUS_HW_GUID)) {
-		pr_info("Asus Management GUID not found\n");
-		return -ENODEV;
-	}
+	board_vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
+	board_name = dmi_get_system_info(DMI_BOARD_NAME);
 
 	if(get_version(&version)) {
 		pr_err("Error getting version\n");
 		return -ENODEV;
 	}
 
-	if(version != 2) {
-		pr_err("Unsupported ASUSHW version\n");
+	if (board_vendor && board_name) {
+		pr_debug("%s %s", board_vendor, board_name);
+
+		if (version >= 3 || (version >= 2 && (
+			strcmp(board_name, CROSSHAIR_7_WIFI) == 0 ||
+			strcmp(board_name, CROSSHAIR_7) == 0 ||
+			strcmp(board_name, CROSSHAIR_6_WIFI) == 0 ||
+			strcmp(board_name, CROSSHAIR_6) == 0))) {
+
+			pr_debug("Supported board");
+			return 0;
+		}
+	}
+	pr_debug("Unsupported board");
+	return -ENODEV;
+}
+
+static int asus_wmi_sensors_probe(struct wmi_device *wdev)
+{
+	struct device *dev = &wdev->dev;
+	struct asus_wmi_sensors *asus_wmi_sensors;
+
+	if (is_board_supported()) {
 		return -ENODEV;
 	}
 
-	pr_info("ASUS WMI sensors driver loaded\n");
-	return 0;
-}
-
-static int asus_wmi_remove(struct platform_device *device)
-{
-	struct asus_wmi_sensors *asus;
-
-	asus = platform_get_drvdata(device);
-
-	kfree(asus);
-	return 0;
-}
-
-static struct platform_driver asus_wmi_sensors_platform_driver = {
-	.driver = {
-		.name	= "asushwwmi",
-	},
-	.probe		= asus_wmi_probe,
-	.remove		= asus_wmi_remove,
-};
-
-static int __init asus_wmi_init(void)
-{
-	struct asus_wmi_sensors *asus_wmi_sensors;
-
-	if (used)
-		return -EBUSY;
-
-	asus_wmi_sensors_platform_device = platform_create_bundle(&asus_wmi_sensors_platform_driver,
-						 asus_wmi_probe,
-						 NULL, 0, NULL, 0);
-
-	if (IS_ERR(asus_wmi_sensors_platform_device))
-		return PTR_ERR(asus_wmi_sensors_platform_device);
-
-	asus_wmi_sensors = devm_kzalloc(&asus_wmi_sensors_platform_device->dev, sizeof(struct asus_wmi_sensors), GFP_KERNEL);
+	asus_wmi_sensors = devm_kzalloc(dev, sizeof(struct asus_wmi_sensors), GFP_KERNEL);
 	if (!asus_wmi_sensors)
 		return -ENOMEM;
 
-	asus_wmi_sensors->platform_device = asus_wmi_sensors_platform_device;
-	asus_wmi_sensors->platform_driver = asus_wmi_sensors_platform_driver;
+	asus_wmi_sensors->wmi_device = wdev;
 
-	platform_set_drvdata(asus_wmi_sensors->platform_device, asus_wmi_sensors);
-	
-	used = true;
-
+	dev_set_drvdata(dev, asus_wmi_sensors);
 	return configure_sensor_setup(asus_wmi_sensors);
 }
 
-static void __exit asus_wmi_exit(void)
+static int asus_wmi_sensors_remove(struct wmi_device *wdev)
 {
-	platform_device_unregister(asus_wmi_sensors_platform_device);
-	platform_driver_unregister(&asus_wmi_sensors_platform_driver);
+	struct asus_wmi_sensors *asus;
+
+	asus = dev_get_drvdata(&wdev->dev);
+
+	return 0;
 }
 
-module_init(asus_wmi_init);
-module_exit(asus_wmi_exit);
+static const struct wmi_device_id asus_wmi_sensors_id_table[] = {
+	{ .guid_string = ASUS_HW_GUID },
+	{ },
+};
+
+static struct wmi_driver asus_wmi_sensors = {
+	.driver = {
+		.name = "asus-wmi-sensors",
+	},
+	.probe = asus_wmi_sensors_probe,
+	.remove = asus_wmi_sensors_remove,
+	.id_table = asus_wmi_sensors_id_table,
+};
+
+module_wmi_driver(asus_wmi_sensors);
