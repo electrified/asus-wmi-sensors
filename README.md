@@ -10,12 +10,12 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 - Scaling performed in-driver
 
 ## Supported hardware
-- Asus ROG Crosshair Hero VII (WiFi).
+- Asus ROG Crosshair Hero VII (WiFi)
 
 ## Untested but should work
-- Asus ROG Crosshair Hero VII.
-- Asus ROG Crosshair Hero VI (WiFi).
-- Asus ROG Crosshair Hero VI.
+- Asus ROG Crosshair Hero VII
+- Asus ROG Crosshair Hero VI (WiFi)
+- Asus ROG Crosshair Hero VI
 - ASUS ROG STRIX B450/X470
 - ASUS ROG Zenith Extreme X399
 
@@ -102,6 +102,6 @@ CPU VRM Output Current:   +1.00 A
 ```
 
 ## Thanks
-Ray Hinchcliffe, author of SIV for info
-Original authors of the IT87 makefile
-Authors of other mainlined HWMON kernel modules that I've studied
+- Ray Hinchcliffe, author of SIV for info
+- Original authors of the IT87 makefile
+- Authors of other mainlined HWMON kernel modules that I've studied while writing this
