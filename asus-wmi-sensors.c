@@ -449,7 +449,7 @@ static int is_board_supported(void) {
 			strcmp(board_name, CROSSHAIR_7_WIFI) == 0 ||
 			strcmp(board_name, CROSSHAIR_7) == 0 ||
 			strcmp(board_name, CROSSHAIR_6_WIFI) == 0 ||
-			strcmp(board_name, CROSSHAIR_6) == 0)
+			strcmp(board_name, CROSSHAIR_6) == 0 ||
 			strcmp(board_name, ZENITH_EXTREME) == 0))) {
 
 			pr_debug("Supported board");

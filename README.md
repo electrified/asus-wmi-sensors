@@ -1,5 +1,9 @@
 # Linux ASUS WMI Sensor driver.
 
+## General info
+
+Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts via ASUS' WMI interface present in the UEFI of some recent Ryzen motherboards.
+
 ## Supported hardware
 - Asus ROG Crosshair Hero VII (WiFi).
 
@@ -15,11 +19,10 @@
 - Reports all sensor names identically to in the UEFI firmware
 - Scaling performed in-driver
 
-
 ## How to install
 
 ### Arch Linux
-
+Available as an AUR package - https://aur.archlinux.org/packages/asus-wmi-sensors-dkms-git/
 
 ## FAQ
 
