@@ -17,7 +17,6 @@
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
 MODULE_DESCRIPTION("Asus WMI Sensors Driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("0.0.1");
 
 #define ASUS_HW_GUID "466747A0-70EC-11DE-8A39-0800200C9A66"
 
