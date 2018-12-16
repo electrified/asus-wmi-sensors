@@ -32,6 +32,18 @@ The module can be manually loaded by issuing ```sudo modprobe asus_wmi_sensors``
 
 Run ```sensors``` and you should see a ```asuswmisensors-virtual-0``` device and readouts as you see in the UEFI interface.
 
+### Other distributions
+
+Clone the git repo: ```git clone https://github.com/electrified/asus-wmi-sensors.git```
+
+Build the module ```sudo make dkms```
+
+Insert the module ```sudo modprobe asus-wmi-sensors```
+
+Run ```sensors``` and you should see a ```asuswmisensors-virtual-0``` device and readouts as you see in the UEFI interface.
+
+Optional - consult your distro's documentation for info on how to make the module be loaded automatically at boot
+
 ## FAQ
 
 ### I think my motherboard should be supported but it doesn't work, what can I do?
@@ -88,3 +100,8 @@ Water In:                +216.0°C
 Water Out:                +28.0°C  
 CPU VRM Output Current:   +1.00 A 
 ```
+
+## Thanks
+Ray Hinchcliffe, author of SIV for info
+Original authors of the IT87 makefile
+Authors of other mainlined HWMON kernel modules that I've studied
