@@ -423,7 +423,7 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 		}
 	}
 
-	hwdev = devm_hwmon_device_register_with_info(dev, "asushwwmi",
+	hwdev = devm_hwmon_device_register_with_info(dev, "asuswmisensors",
 						     asus_wmi_sensors, chip_info,
 						     NULL);
 

@@ -4,6 +4,11 @@
 
 Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts via ASUS' WMI interface present in the UEFI of some recent Ryzen motherboards.
 
+## Features
+- Reports all values scaled identically to in the UEFI interface
+- Reports all sensor names identically to in the UEFI firmware
+- Scaling performed in-driver
+
 ## Supported hardware
 - Asus ROG Crosshair Hero VII (WiFi).
 
@@ -14,15 +19,18 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 - ASUS ROG STRIX B450/X470
 - ASUS ROG Zenith Extreme X399
 
-## Features
-- Reports all values scaled identically to in the UEFI interface
-- Reports all sensor names identically to in the UEFI firmware
-- Scaling performed in-driver
-
 ## How to install
+
+Ensure you have lm_sensors installed.
 
 ### Arch Linux
 Available as an AUR package - https://aur.archlinux.org/packages/asus-wmi-sensors-dkms-git/
+
+This hooks into DKMS to build a module for your available kernels and adds a ```/etc/module-load.d/``` entry so the module is loaded at boot.
+
+The module can be manually loaded by issuing ```sudo modprobe asus_wmi_sensors```
+
+Run ```sensors``` and you should see a ```asuswmisensors-virtual-0``` device and readouts as you see in the UEFI interface.
 
 ## FAQ
 
@@ -45,7 +53,7 @@ Many of Asus' recent Ryzen motherboards have the ITE IT8665E sensor IC, which do
 ## Example sensors output
 
 ```
-asushwwmi-virtual-0
+asuswmisensors-virtual-0
 Adapter: Virtual device
 CPU Core Voltage:         +0.88 V  
 CPU SOC Voltage:          +1.13 V  
