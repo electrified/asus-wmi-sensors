@@ -397,17 +397,17 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	for (i = nr_sensors - 1; i >= 0 ; i--) {
 		temp_sensor = devm_kzalloc(dev, sizeof(*temp_sensor), GFP_KERNEL);
 		if (!temp_sensor) {
-			pr_err("Alloc fail\n");
+			pr_err("asuswmisensors: Alloc fail\n");
 			return -ENOMEM;
 		}
 
 		err = info(i, temp_sensor);
 		if (err) {
-			pr_err("sensor error\n");
+			pr_err("asuswmisensors: sensor error\n");
 			continue;
 		}
 
-		pr_debug("setting sensor info\n");
+		pr_debug("asuswmisensors: setting sensor info\n");
 
 		switch (temp_sensor->data_type) {
 		case TEMPERATURE_C:
@@ -430,19 +430,20 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 }
 
 static int is_board_supported(void) {
-	const char *board_vendor, *board_name;
+	const char *board_vendor, *board_name, *bios_version;
 	u32 version = 0;
 
 	board_vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
 	board_name = dmi_get_system_info(DMI_BOARD_NAME);
+	bios_version = dmi_get_system_info(DMI_BIOS_VERSION);
 
 	if(get_version(&version)) {
-		pr_err("Error getting version\n");
+		pr_err("asuswmisensors: Error getting version\n");
 		return -ENODEV;
 	}
 
-	if (board_vendor && board_name) {
-		pr_debug("%s %s", board_vendor, board_name);
+	if (board_vendor && board_name && bios_version) {
+		pr_info("asuswmisensors: Vendor: %s Board: %s BIOS version: %s WMI version: %u", board_vendor, board_name, bios_version, version);
 
 		if (version >= 3 || (version >= 2 && (
 			strcmp(board_name, CROSSHAIR_7_WIFI) == 0 ||
@@ -451,11 +452,11 @@ static int is_board_supported(void) {
 			strcmp(board_name, CROSSHAIR_6) == 0 ||
 			strcmp(board_name, ZENITH_EXTREME) == 0))) {
 
-			pr_debug("Supported board");
+			pr_info("asuswmisensors: Supported board");
 			return 0;
 		}
 	}
-	pr_debug("Unsupported board");
+	pr_info("asuswmisensors: Unsupported board");
 	return -ENODEV;
 }
 
