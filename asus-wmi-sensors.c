@@ -465,6 +465,8 @@ static int asus_wmi_sensors_probe(struct wmi_device *wdev)
 	struct device *dev = &wdev->dev;
 	struct asus_wmi_sensors *asus_wmi_sensors;
 
+	pr_info("asuswmisensors: WMI GUID matched - probing");
+
 	if (is_board_supported()) {
 		return -ENODEV;
 	}
