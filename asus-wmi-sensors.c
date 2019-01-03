@@ -4,6 +4,7 @@
  *
  * Copyright (C) 2018 Ed Brindley <kernel@maidavale.org>
  */
+#define PLATFORM_DRIVER
 
 #include <linux/dmi.h>
 #include <linux/hwmon.h>
@@ -12,6 +13,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
+#include <linux/platform_device.h>
 #include <linux/wmi.h>
 
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
@@ -69,8 +71,13 @@ struct asus_wmi_sensor_info {
 };
 
 struct asus_wmi_sensors {
+	#ifdef PLATFORM_DRIVER
+	struct platform_driver platform_driver;
+ 	struct platform_device *platform_device;
+	#else
 	struct wmi_driver wmi_driver;
 	struct wmi_device *wmi_device;
+	#endif
 
 	u8 buffer;
 	struct mutex lock;
@@ -324,8 +331,12 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	int i, idx;
 	int nr_count[hwmon_max] = {0}, nr_types = 0;
 	u32 nr_sensors = 0;
-	struct device *hwdev, *dev = &asus_wmi_sensors->wmi_device->dev;
-
+	struct device *hwdev; 
+	#ifdef PLATFORM_DRIVER
+	struct device *dev = &asus_wmi_sensors->platform_device->dev;
+	#else
+	struct device *dev = &asus_wmi_sensors->wmi_device->dev;
+	#endif
 	struct hwmon_channel_info *asus_wmi_hwmon_chan;
 	struct asus_wmi_sensor_info *temp_sensor;
 	enum hwmon_sensor_types type;
@@ -460,6 +471,8 @@ static int is_board_supported(void) {
 	return -ENODEV;
 }
 
+#ifndef PLATFORM_DRIVER
+
 static int asus_wmi_sensors_probe(struct wmi_device *wdev)
 {
 	struct device *dev = &wdev->dev;
@@ -505,3 +518,62 @@ static struct wmi_driver asus_wmi_sensors = {
 };
 
 module_wmi_driver(asus_wmi_sensors);
+#endif
+
+#ifdef PLATFORM_DRIVER
+static struct platform_device *asus_wmi_sensors_platform_device;
+
+static int asus_wmi_probe(struct platform_device *pdev)
+{
+	if (!wmi_has_guid(ASUS_HW_GUID)) {
+		pr_info("asuswmisensors: ASUS Management GUID not found\n");
+		return -ENODEV;
+	}
+
+	if (is_board_supported()) {
+		return -ENODEV;
+	}
+
+	pr_info("asuswmisensors: ASUS WMI sensors driver loaded\n");
+	return 0;
+}
+
+static struct platform_driver asus_wmi_sensors_platform_driver = {
+	.driver = {
+		.name	= "asus-wmi-sensors",
+	},
+	.probe		= asus_wmi_probe
+};
+
+static int __init asus_wmi_init(void)
+{
+	struct asus_wmi_sensors *asus_wmi_sensors;
+
+	asus_wmi_sensors_platform_device = platform_create_bundle(&asus_wmi_sensors_platform_driver,
+						 asus_wmi_probe,
+						 NULL, 0, NULL, 0);
+
+	if (IS_ERR(asus_wmi_sensors_platform_device))
+		return PTR_ERR(asus_wmi_sensors_platform_device);
+
+	asus_wmi_sensors = devm_kzalloc(&asus_wmi_sensors_platform_device->dev, sizeof(struct asus_wmi_sensors), GFP_KERNEL);
+	if (!asus_wmi_sensors)
+		return -ENOMEM;
+
+	asus_wmi_sensors->platform_device = asus_wmi_sensors_platform_device;
+	asus_wmi_sensors->platform_driver = asus_wmi_sensors_platform_driver;
+
+	platform_set_drvdata(asus_wmi_sensors->platform_device, asus_wmi_sensors);
+	
+	return configure_sensor_setup(asus_wmi_sensors);
+}
+
+static void __exit asus_wmi_exit(void)
+ {
+ 	platform_device_unregister(asus_wmi_sensors_platform_device);
+ 	platform_driver_unregister(&asus_wmi_sensors_platform_driver);
+ }
+ 
+ module_init(asus_wmi_init);
+ module_exit(asus_wmi_exit);
+ #endif
