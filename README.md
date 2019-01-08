@@ -12,14 +12,14 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 ## Supported hardware
 
 |Board                              | Minimum BIOS Version |
-------------------------------------------------------------
+|-----------------------------------|----------------------|
 |Asus ROG Crosshair Hero VII (WiFi) | 1002                 |
 |Asus ROG Crosshair Hero VI         | 6301                 |
 
 ## Untested but should work
 
 |Board                              | Minimum BIOS Version |
-------------------------------------------------------------
+|-----------------------------------|----------------------|
 |Asus ROG Crosshair Hero VII        | 1002                 |
 |Asus ROG Crosshair Hero VI (WiFi)  | 6302                 |
 
