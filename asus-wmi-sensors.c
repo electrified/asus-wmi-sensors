@@ -528,7 +528,7 @@ static struct platform_device *asus_wmi_sensors_platform_device;
 static int asus_wmi_probe(struct platform_device *pdev)
 {
 	if (!wmi_has_guid(ASUS_HW_GUID)) {
-		pr_info("asuswmisensors: ASUS Management GUID not found\n");
+		pr_info("asuswmisensors: ASUSHW GUID not found\n");
 		return -ENODEV;
 	}
 

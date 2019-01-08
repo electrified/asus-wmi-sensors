@@ -10,14 +10,24 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 - Scaling performed in-driver
 
 ## Supported hardware
-- Asus ROG Crosshair Hero VII (WiFi)
+
+|Board                              | Minimum BIOS Version |
+------------------------------------------------------------
+|Asus ROG Crosshair Hero VII (WiFi) | 1002                 |
+|Asus ROG Crosshair Hero VI         | 6301                 |
 
 ## Untested but should work
-- Asus ROG Crosshair Hero VII
-- Asus ROG Crosshair Hero VI (WiFi)
-- Asus ROG Crosshair Hero VI
-- ASUS ROG STRIX B450/X470
-- ASUS ROG Zenith Extreme X399
+
+|Board                              | Minimum BIOS Version |
+------------------------------------------------------------
+|Asus ROG Crosshair Hero VII        | 1002                 |
+|Asus ROG Crosshair Hero VI (WiFi)  | 6302                 |
+
+## Currently don't work / unknown
+
+- ASUS ROG STRIX B450/X470 (e.g. Strix B450-F) - (WMI version too old)
+- ASUS ROG Zenith Extreme X399 - (WMI version too old - there is a modified BIOS from Elmor with support added https://www.overclock.net/forum/11-amd-motherboards/1642825-asus-x399-rog-zenith-extreme-complaint-bug-tracking-thread-111.html#post27703780)
+- ASUS ROG CROSSHAIR VI EXTREME
 
 ## How to install
 
@@ -56,7 +66,7 @@ This is the value returned for temperature sensor headers with no sensor connect
 This driver is not reading from the SuperIO/ Embedded controller directly, it uses a WMI interface put in the UEFI firmware by ASUS. Reading from this WMI interface seems inherently slow. I am investigating calling the underlying ACPI methods that the WMI interface calls which I have been told performs better.
 
 ### Why does this driver exist?
-Many of Asus' recent Ryzen motherboards have the ITE IT8665E sensor IC, which does not have any publically available datasheets. Some support has been added to the out-of-tree IT87 driver, but this is currently unmaintained and not working on recent kernels. Also many Windows drivers are moving to use this WMI interface rather than accessing the chip directly as this avoids conflicts when multiple moniroting apps attempt to read the sensors simultaneously.
+Many of Asus' recent Ryzen motherboards have the ITE IT8665E sensor IC, which does not have any publically available datasheets. Some support has been added to the out-of-tree IT87 driver, but this is currently unmaintained and not working on recent kernels. Also many Windows drivers are moving to use this WMI interface rather than accessing the chip directly as this avoids conflicts when multiple monitoring apps attempt to read the sensors simultaneously.
 
 ### Why have you created a new driver and not added to the existing Asus/eeepc drivers?
 - The existing drivers are basic platform devices rather than using the kernels' WMI bus
