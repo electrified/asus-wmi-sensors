@@ -22,8 +22,9 @@ MODULE_LICENSE("GPL");
 
 #define ASUS_HW_GUID "466747A0-70EC-11DE-8A39-0800200C9A66"
 
-#define CROSSHAIR_6 "ROG CROSSHAIR VI HERO"
-#define CROSSHAIR_6_WIFI "ROG CROSSHAIR VI HERO (WI-FI)"
+#define CROSSHAIR_6 "CROSSHAIR VI HERO"
+#define CROSSHAIR_6_WIFI "ROG CROSSHAIR VI HERO (WI-FI AC)"
+#define CROSSHAIR_6_EXTREME "ROG CROSSHAIR VI EXTREME"
 #define CROSSHAIR_7 "ROG CROSSHAIR VII HERO"
 #define CROSSHAIR_7_WIFI "ROG CROSSHAIR VII HERO (WI-FI)"
 #define ZENITH_EXTREME "ROG ZENITH EXTREME"
@@ -461,6 +462,7 @@ static int is_board_supported(void) {
 			strcmp(board_name, CROSSHAIR_7) == 0 ||
 			strcmp(board_name, CROSSHAIR_6_WIFI) == 0 ||
 			strcmp(board_name, CROSSHAIR_6) == 0 ||
+			strcmp(board_name, CROSSHAIR_6_EXTREME) == 0 ||
 			strcmp(board_name, ZENITH_EXTREME) == 0))) {
 
 			pr_info("asuswmisensors: Supported board");
