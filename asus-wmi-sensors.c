@@ -2,7 +2,7 @@
 /*
  * Asus WMI sensors HWMON driver
  *
- * Copyright (C) 2018 Ed Brindley <kernel@maidavale.org>
+ * Copyright (C) 2018-2019 Ed Brindley <kernel@maidavale.org>
  */
 #define PLATFORM_DRIVER
 
@@ -10,6 +10,7 @@
 #include <linux/hwmon.h>
 #include <linux/hwmon-sysfs.h>
 #include <linux/init.h>
+#include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -46,6 +47,28 @@ enum asus_wmi_sensor_class {
 	WATER_FLOW = 0x4,
 };
 
+enum asus_wmi_location {
+	CPU = 0x0,
+	CPU_SOC = 0x1,
+	DRAM = 0x2,
+	MOTHERBOARD = 0x3,
+	CHIPSET = 0x4,
+	AUX = 0x5,
+	VRM = 0x6,
+	COOLER = 0x7
+};
+
+enum asus_wmi_type {
+	SIGNED_INT = 0x0,
+	UNSIGNED_INT = 0x1,
+	SCALED = 0x3
+};
+
+enum asus_wmi_source {
+	SIO = 0x1,
+	EC = 0x2
+};
+
 static enum hwmon_sensor_types asus_data_types[] = {
 	[VOLTAGE] = hwmon_in,
 	[TEMPERATURE_C] = hwmon_temp,
@@ -64,11 +87,12 @@ static u32 hwmon_attributes[] = {
 
 struct asus_wmi_sensor_info {
 	u32 id;
-	int data_type;
-	int location;
+	int data_type; // asus_wmi_sensor_class e.g. voltage, temp etc
+	int location; // asus_wmi_location
 	char name[ASUS_WMI_MAX_STR_SIZE];
-	int source;
-	int type;
+	int source; // asus_wmi_source
+	int type; // asus_wmi_type signed, unsigned etc
+	u32 cached_value;
 };
 
 struct asus_wmi_sensors {
@@ -81,8 +105,12 @@ struct asus_wmi_sensors {
 	#endif
 
 	u8 buffer;
+	unsigned long source_last_updated[3];	/* in jiffies */
+	u8 sensor_count;
+
 	struct mutex lock;
 	const struct asus_wmi_sensor_info **info[hwmon_max];
+	struct asus_wmi_sensor_info **info_by_id;
 };
 
 /*
@@ -107,6 +135,9 @@ static int asus_wmi_call_method(u32 method_id, u32 *args, struct acpi_buffer *ou
 	return 0;
 }
 
+/*
+ * Gets the version of the ASUS sensors interface implemented
+ */
 static int get_version(u32 *version)
 {
 	u32 args[] = {0, 0, 0};
@@ -123,6 +154,9 @@ static int get_version(u32 *version)
 	return status;
 }
 
+/*
+ * Gets the number of sensor items
+ */
 static int get_item_count(u32 *count) 
 {
 	u32 args[] = {0, 0, 0};
@@ -139,6 +173,9 @@ static int get_item_count(u32 *count)
 	return status;
 }
 
+/*
+ * For a given sensor item returns details e.g. type (voltage/temperature/fan speed etc), bank etc
+ */
 static int info(int index, struct asus_wmi_sensor_info *s) 
 {
 	u32 args[] = {index, 0};
@@ -219,6 +256,58 @@ static int get_sensor_value(u8 index, u32 *value)
 	return status;
 }
 
+static void update_values_for_source(u8 source, struct asus_wmi_sensors *asus_wmi_sensors) {
+	int ret = 0;
+	int value = 0;
+	int i;
+	struct asus_wmi_sensor_info *sensor;
+
+	for (i = 0; i < asus_wmi_sensors->sensor_count;i++) {
+		sensor = asus_wmi_sensors->info_by_id[i];
+		if(sensor->source == source) {
+			ret = get_sensor_value(sensor->id, &value);
+			if (!ret) {
+				sensor->cached_value = value;
+			}
+		}
+	}
+}
+
+static int scale_sensor_value(u32 value, int data_type) {
+	switch (data_type) {
+	case VOLTAGE:
+		return DIV_ROUND_CLOSEST(value, 1000);
+	case TEMPERATURE_C:
+		return value * 1000;
+	case CURRENT:
+		return value * 1000;
+	}
+	return value; // FAN_RPM and WATER_FLOW don't need scaling
+}
+
+static int get_cached_value_or_update(const struct asus_wmi_sensor_info *sensor, struct asus_wmi_sensors *asus_wmi_sensors, u32 *value) {
+	int ret;
+
+	if (time_after(jiffies, asus_wmi_sensors->source_last_updated[sensor->source] + HZ)) {
+		if (asus_wmi_sensors->buffer != sensor->source) {
+
+			ret = update_buffer(sensor->source);
+
+			if (ret) {
+				pr_err("update_buffer failure\n");
+				return -EIO;
+			}
+			asus_wmi_sensors->buffer = sensor->source;
+		}
+
+		update_values_for_source(sensor->source, asus_wmi_sensors);
+		asus_wmi_sensors->source_last_updated[sensor->source] = jiffies;
+	}
+	
+	*value = sensor->cached_value;
+	return 0;
+}
+
 /* 
  * Now follow the functions that implement the hwmon interface
  */
@@ -235,36 +324,12 @@ static int asus_wmi_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 	sensor = *(asus_wmi_sensors->info[type] + channel);
 
 	mutex_lock(&asus_wmi_sensors->lock);
-	if (asus_wmi_sensors->buffer != sensor->source) {
-		//pr_debug("updating buffer... from %u to %u\n", asus_wmi_sensors->buffer, sensor->source);
-		ret = update_buffer(sensor->source);
 
-		if (ret) {
-			pr_err("update_buffer failure\n");
-			mutex_unlock(&asus_wmi_sensors->lock);
-			return -EIO;
-		}
-		asus_wmi_sensors->buffer = sensor->source;
-	}
-
-	ret = get_sensor_value(sensor->id, &value);
+	ret = get_cached_value_or_update(sensor, asus_wmi_sensors, &value);
 	mutex_unlock(&asus_wmi_sensors->lock);
 
 	if (!ret) {
-		switch (sensor->data_type) {
-		case VOLTAGE:
-			*val = DIV_ROUND_CLOSEST(value, 1000);
-			break;
-		case TEMPERATURE_C:
-			*val = value * 1000;
-			break;
-		case CURRENT:
-			*val = value * 1000;
-			break;
-		case FAN_RPM:
-		case WATER_FLOW:
-			*val = value;
-		}
+		*val = scale_sensor_value(value, sensor->data_type);
 	}
 
 	return ret;
@@ -354,7 +419,8 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	}
 
 	get_item_count(&nr_sensors);
-	
+	asus_wmi_sensors->sensor_count = nr_sensors;
+
 	pr_debug("sensor count %u\n", nr_sensors);
 
 	for (i = 0; i < nr_sensors; i++) {
@@ -392,6 +458,11 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	asus_wmi_chip_info.info = ptr_asus_wmi_ci;
 	chip_info = &asus_wmi_chip_info;
 	
+	asus_wmi_sensors->info_by_id =
+		devm_kcalloc(dev, nr_sensors, sizeof(*asus_wmi_sensors->info_by_id), GFP_KERNEL);
+	if (!asus_wmi_sensors->info_by_id)
+		return -ENOMEM;
+
 	for (type = 0; type < hwmon_max; type++) {
 		if (!nr_count[type])
 			continue;
@@ -430,6 +501,7 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 			type = asus_data_types[temp_sensor->data_type];
 			idx = --nr_count[type];
 			*(asus_wmi_sensors->info[type] + idx) = temp_sensor;
+			asus_wmi_sensors->info_by_id[i] = temp_sensor;
 			break;
 		}
 	}
