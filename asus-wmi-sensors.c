@@ -20,6 +20,7 @@
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
 MODULE_DESCRIPTION("Asus WMI Sensors Driver");
 MODULE_LICENSE("GPL");
+MODULE_VERSION("1");
 
 #define ASUS_HW_GUID "466747A0-70EC-11DE-8A39-0800200C9A66"
 
@@ -303,7 +304,7 @@ static int get_cached_value_or_update(const struct asus_wmi_sensor_info *sensor,
 		update_values_for_source(sensor->source, asus_wmi_sensors);
 		asus_wmi_sensors->source_last_updated[sensor->source] = jiffies;
 	}
-	
+
 	*value = sensor->cached_value;
 	return 0;
 }
