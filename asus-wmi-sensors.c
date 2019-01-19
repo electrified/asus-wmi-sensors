@@ -20,7 +20,7 @@
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
 MODULE_DESCRIPTION("Asus WMI Sensors Driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1");
+MODULE_VERSION("2");
 
 #define ASUS_HW_GUID "466747A0-70EC-11DE-8A39-0800200C9A66"
 
@@ -39,6 +39,8 @@ MODULE_VERSION("1");
 #define METHODID_SENSOR_GET_VERSION     	0x50574574
 
 #define ASUS_WMI_MAX_STR_SIZE	32
+
+#define HWMON_MAX	9
 
 enum asus_wmi_sensor_class {
 	VOLTAGE = 0x0,
@@ -110,7 +112,7 @@ struct asus_wmi_sensors {
 	u8 sensor_count;
 
 	struct mutex lock;
-	const struct asus_wmi_sensor_info **info[hwmon_max];
+	const struct asus_wmi_sensor_info **info[HWMON_MAX];
 	struct asus_wmi_sensor_info **info_by_id;
 };
 
@@ -396,7 +398,7 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 {
 	int err;
 	int i, idx;
-	int nr_count[hwmon_max] = {0}, nr_types = 0;
+	int nr_count[HWMON_MAX] = {0}, nr_types = 0;
 	u32 nr_sensors = 0;
 	struct device *hwdev; 
 	#ifdef PLATFORM_DRIVER
@@ -464,7 +466,7 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	if (!asus_wmi_sensors->info_by_id)
 		return -ENOMEM;
 
-	for (type = 0; type < hwmon_max; type++) {
+	for (type = 0; type < HWMON_MAX; type++) {
 		if (!nr_count[type])
 			continue;
 
