@@ -48,7 +48,7 @@ enum asus_wmi_sensor_class {
 	FAN_RPM = 0x2,
 	CURRENT = 0x3,
 	WATER_FLOW = 0x4,
-	BOOL = 0x5 //TODO
+	//BOOL = 0x5 //TODO
 };
 
 enum asus_wmi_location {
@@ -65,7 +65,7 @@ enum asus_wmi_location {
 enum asus_wmi_type {
 	SIGNED_INT = 0x0,
 	UNSIGNED_INT = 0x1,
-	BOOL = 0x2, //TODO
+	//BOOL = 0x2, //TODO
 	SCALED = 0x3,
 };
 
