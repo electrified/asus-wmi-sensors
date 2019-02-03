@@ -65,7 +65,7 @@ endif
 all: modules
 
 # Targets for running make directly in the external module directory:
-
+# Add -g -DDEBUG to build a debug module
 ASUS_WMI_SENSORS_CFLAGS=-DASUS_WMI_SENSORS_DRIVER_VERSION='\"$(DRIVER_VERSION)\"'
 
 modules:

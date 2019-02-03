@@ -20,7 +20,7 @@
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
 MODULE_DESCRIPTION("Asus WMI Sensors Driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("2");
+MODULE_VERSION("3");
 
 #define ASUS_HW_GUID "466747A0-70EC-11DE-8A39-0800200C9A66"
 
@@ -48,6 +48,7 @@ enum asus_wmi_sensor_class {
 	FAN_RPM = 0x2,
 	CURRENT = 0x3,
 	WATER_FLOW = 0x4,
+	BOOL = 0x5 //TODO
 };
 
 enum asus_wmi_location {
@@ -64,7 +65,8 @@ enum asus_wmi_location {
 enum asus_wmi_type {
 	SIGNED_INT = 0x0,
 	UNSIGNED_INT = 0x1,
-	SCALED = 0x3
+	BOOL = 0x2, //TODO
+	SCALED = 0x3,
 };
 
 enum asus_wmi_source {
@@ -267,7 +269,7 @@ static void update_values_for_source(u8 source, struct asus_wmi_sensors *asus_wm
 
 	for (i = 0; i < asus_wmi_sensors->sensor_count;i++) {
 		sensor = asus_wmi_sensors->info_by_id[i];
-		if(sensor->source == source) {
+		if(sensor && sensor->source == source) {
 			ret = get_sensor_value(sensor->id, &value);
 			if (!ret) {
 				sensor->cached_value = value;
@@ -463,6 +465,7 @@ static int configure_sensor_setup(struct asus_wmi_sensors *asus_wmi_sensors)
 	
 	asus_wmi_sensors->info_by_id =
 		devm_kcalloc(dev, nr_sensors, sizeof(*asus_wmi_sensors->info_by_id), GFP_KERNEL);
+
 	if (!asus_wmi_sensors->info_by_id)
 		return -ENOMEM;
 
