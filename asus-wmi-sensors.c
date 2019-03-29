@@ -30,6 +30,7 @@ MODULE_VERSION("3");
 #define CROSSHAIR_7 "ROG CROSSHAIR VII HERO"
 #define CROSSHAIR_7_WIFI "ROG CROSSHAIR VII HERO (WI-FI)"
 #define ZENITH_EXTREME "ROG ZENITH EXTREME"
+#define PRIME_X470_PRO "PRIME X470-PRO"
 
 #define METHODID_SENSOR_GET_VALUE     		0x52574543
 #define METHODID_SENSOR_UPDATE_BUFFER     	0x51574543
@@ -541,7 +542,8 @@ static int is_board_supported(void) {
 			strcmp(board_name, CROSSHAIR_6_WIFI) == 0 ||
 			strcmp(board_name, CROSSHAIR_6) == 0 ||
 			strcmp(board_name, CROSSHAIR_6_EXTREME) == 0 ||
-			strcmp(board_name, ZENITH_EXTREME) == 0))) {
+			strcmp(board_name, ZENITH_EXTREME) == 0 ||
+			strcmp(board_name, PRIME_X470_PRO) == 0))) {
 
 			pr_info("asuswmisensors: Supported board");
 			return 0;
