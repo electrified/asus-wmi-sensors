@@ -5,33 +5,31 @@
 Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts via ASUS' WMI interface present in the UEFI of some recent Ryzen motherboards.
 
 ## Features
-- Reports all values scaled identically to in the UEFI interface
-- Reports all sensor names identically to in the UEFI firmware
-- Scaling performed in-driver
-
+- Reports all values scaled and named identically to in the UEFI interface
+- No sensor config required
+- 
 ## Supported hardware
 
 |Board                              | Minimum BIOS Version |
 |-----------------------------------|----------------------|
 |Asus ROG Crosshair Hero VII (WiFi) | 1002                 |
-|Asus ROG Crosshair Hero VI         | 6301                 |
-
-## Untested but should work
-
-|Board                              | Minimum BIOS Version |
-|-----------------------------------|----------------------|
 |Asus ROG Crosshair Hero VII        | 1002                 |
+|Asus ROG Crosshair Hero VI         | 6301                 |
 |Asus ROG Crosshair Hero VI (WiFi)  | 6302                 |
+|ASUS Zenith Extreme                | 1607/1701            |
+|Prime X470-Pro                     | 4602                 |
 
 ## Currently don't work / unknown
 
-- ASUS ROG STRIX B450/X470 (e.g. Strix B450-F) - (WMI version too old)
-- ASUS ROG Zenith Extreme X399 - (WMI version too old - there is a modified BIOS from Elmor with support added https://www.overclock.net/forum/11-amd-motherboards/1642825-asus-x399-rog-zenith-extreme-complaint-bug-tracking-thread-111.html#post27703780)
-- ASUS ROG CROSSHAIR VI EXTREME
+|Board                              |
+|-----------------------------------|
+|ASUS ROG STRIX B450/X470 (e.g. Strix B450-F)|
+|Prime B450-Plus|
+|ASUS ROG CROSSHAIR VI EXTREME|
 
 ## How to install
 
-Ensure you have lm_sensors installed.
+Ensure you have lm_sensors, DKMS, kernel sources, GCC etc installed.
 
 ### Arch Linux
 Available as an AUR package - https://aur.archlinux.org/packages/asus-wmi-sensors-dkms-git/
@@ -40,7 +38,7 @@ This hooks into DKMS to build a module for your available kernels and adds a ```
 
 The module can be manually loaded by issuing ```sudo modprobe asus_wmi_sensors```
 
-Run ```sensors``` and you should see a ```asuswmisensors-virtual-0``` device and readouts as you see in the UEFI interface.
+Run ```sensors``` and you should see a ```asuswmisensors-isa-0000``` device and readouts as you see in the UEFI interface.
 
 ### Other distributions
 
@@ -50,7 +48,7 @@ Build the module ```sudo make dkms```
 
 Insert the module ```sudo modprobe asus-wmi-sensors```
 
-Run ```sensors``` and you should see a ```asuswmisensors-virtual-0``` device and readouts as you see in the UEFI interface.
+Run ```sensors``` and you should see a ```asuswmisensors-isa-0000``` device and readouts as you see in the UEFI interface.
 
 Optional - consult your distro's documentation for info on how to make the module be loaded automatically at boot
 
@@ -75,7 +73,7 @@ Many of Asus' recent Ryzen motherboards have the ITE IT8665E sensor IC, which do
 ## Example sensors output
 
 ```
-asuswmisensors-virtual-0
+asuswmisensors-isa-0000
 Adapter: Virtual device
 CPU Core Voltage:         +0.88 V  
 CPU SOC Voltage:          +1.13 V  
