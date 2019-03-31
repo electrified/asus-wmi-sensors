@@ -7,7 +7,7 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 ## Features
 - Reports all values scaled and named identically to in the UEFI interface
 - No sensor config required
-- 
+
 ## Supported hardware
 
 |Board                              | Minimum BIOS Version |
