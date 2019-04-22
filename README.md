@@ -29,7 +29,7 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 
 ## How to install
 
-Ensure you have lm_sensors, DKMS, kernel sources, GCC etc installed.
+Ensure you have lm_sensors, DKMS, kernel sources, GCC etc installed. Kernel version 4.12 or later is required.
 
 ### Arch Linux
 Available as an AUR package - https://aur.archlinux.org/packages/asus-wmi-sensors-dkms-git/
