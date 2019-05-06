@@ -29,7 +29,9 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 
 ## How to install
 
-Ensure you have lm_sensors, DKMS, kernel sources, GCC etc installed. Kernel version 4.12 or later is required. If you have built your own kernel, it must have been built with CONFIG_HWMON (found under Device Drivers) and CONFIG_ACPI_WMI (found under Device Drivers -> X86 Platform Specific Device Drivers) enabled. It is not necessary to have built the "ASUS WMI Driver" (CONFIG_ASUS_WMI) module.
+Ensure you have lm_sensors, DKMS, kernel sources, GCC etc installed. Kernel version 4.12 or later is required. 
+
+If you have built your own kernel, it must have been built with CONFIG_HWMON (found under Device Drivers) and CONFIG_ACPI_WMI (found under Device Drivers -> X86 Platform Specific Device Drivers) enabled. It is not necessary to have built the "ASUS WMI Driver" (CONFIG_ASUS_WMI) module.
 
 ### Arch Linux
 Available as an AUR package - https://aur.archlinux.org/packages/asus-wmi-sensors-dkms-git/
