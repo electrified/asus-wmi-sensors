@@ -17,6 +17,8 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 |Asus ROG Crosshair Hero VI         | 6301                 |
 |Asus ROG Crosshair Hero VI (WiFi)  | 6302                 |
 |ASUS Zenith Extreme                | 1607/1701            |
+|ASUS Zenith Extreme Alpha          | ?                    |
+|Prime X399-A                       | 1002                 |
 |Prime X470-Pro                     | 4602                 |
 
 ## Currently don't work / unknown
