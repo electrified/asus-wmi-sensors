@@ -28,6 +28,7 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 
 |Board                              |
 |-----------------------------------|
+|X570 boards (no WMI interface - use `nct6775` driver instead)|
 |ASUS ROG STRIX B450/X470|
 |Prime B450-Plus|
 |ASUS ROG CROSSHAIR VI EXTREME|
