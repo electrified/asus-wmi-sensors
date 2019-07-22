@@ -19,6 +19,7 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 |Asus ROG Crosshair Hero VI Extreme | ?                    |
 |ROG STRIX B450-F GAMING            | 2406                 |
 |ROG STRIX B450-I GAMING            | 2406                 |
+|ROG STRIX B450-F GAMING            | 5007                 |
 |ROG STRIX X399-E GAMING            |                      |
 |ASUS Zenith Extreme                | 1607/1701            |
 |ASUS Zenith Extreme Alpha          | 0207                 |
@@ -30,7 +31,6 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 |Board                              |
 |-----------------------------------|
 |X570 boards (no WMI interface - use `nct6775` driver instead)|
-|ASUS ROG STRIX B450/X470|
 |Prime B450-Plus|
 |Prime X370-Pro|
 
