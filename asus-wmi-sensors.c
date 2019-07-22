@@ -37,6 +37,7 @@ MODULE_VERSION("3");
 #define STRIX_B450_F "ROG STRIX B450-F GAMING"
 #define STRIX_B450_I "ROG STRIX B450-I GAMING"
 #define STRIX_X470_I "ROG STRIX X470-I GAMING"
+#define STRIX_X470_F "ROG STRIX X470-F GAMING"
 
 #define METHODID_SENSOR_GET_VALUE     		0x52574543
 #define METHODID_SENSOR_UPDATE_BUFFER     	0x51574543
@@ -555,7 +556,8 @@ static int is_board_supported(void) {
 			strcmp(board_name, STRIX_X399_E) == 0 ||
 			strcmp(board_name, STRIX_B450_F) == 0 ||
 			strcmp(board_name, STRIX_B450_I) == 0 ||
-			strcmp(board_name, STRIX_X470_I) == 0))) {
+			strcmp(board_name, STRIX_X470_I) == 0 ||
+			strcmp(board_name, STRIX_X470_F) == 0))) {
 
 			pr_info("asuswmisensors: Supported board");
 			return 0;
