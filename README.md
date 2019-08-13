@@ -17,6 +17,7 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 |Asus ROG Crosshair Hero VI         | 6301                 |
 |Asus ROG Crosshair Hero VI (WiFi)  | 6302                 |
 |Asus ROG Crosshair Hero VI Extreme | ?                    |
+|ROG STRIX B450-E GAMING            | 2406                 |
 |ROG STRIX B450-F GAMING            | 2406                 |
 |ROG STRIX B450-I GAMING            | 2406                 |
 |ROG STRIX X470-F GAMING            | 5007                 |
