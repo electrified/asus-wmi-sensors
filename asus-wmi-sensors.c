@@ -303,16 +303,13 @@ static int get_cached_value_or_update(const struct asus_wmi_sensor_info *sensor,
 	int ret;
 
 	if (time_after(jiffies, asus_wmi_sensors->source_last_updated[sensor->source] + HZ)) {
-		if (asus_wmi_sensors->buffer != sensor->source) {
+		ret = update_buffer(sensor->source);
 
-			ret = update_buffer(sensor->source);
-
-			if (ret) {
-				pr_err("update_buffer failure\n");
-				return -EIO;
-			}
-			asus_wmi_sensors->buffer = sensor->source;
+		if (ret) {
+			pr_err("update_buffer failure\n");
+			return -EIO;
 		}
+		asus_wmi_sensors->buffer = sensor->source;
 
 		update_values_for_source(sensor->source, asus_wmi_sensors);
 		asus_wmi_sensors->source_last_updated[sensor->source] = jiffies;
