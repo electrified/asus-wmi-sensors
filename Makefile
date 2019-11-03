@@ -88,14 +88,14 @@ endif
 	depmod -a -F $(SYSTEM_MAP) $(TARGET)
 
 dkms:
-	@cp  `pwd`/dkms.conf.am `pwd`/dkms.conf
+	@cp --preserve dkms.conf.am dkms.conf
 	@sed -i -e '/^PACKAGE_VERSION=/ s/=.*/=\"$(DRIVER_VERSION)\"/' dkms.conf
 	@echo "$(DRIVER_VERSION)" >VERSION
 	@mkdir $(DKMS_ROOT_PATH)
-	@cp `pwd`/dkms.conf $(DKMS_ROOT_PATH)
-	@cp `pwd`/VERSION $(DKMS_ROOT_PATH)
-	@cp `pwd`/Makefile $(DKMS_ROOT_PATH)
-	@cp `pwd`/asus-wmi-sensors.c $(DKMS_ROOT_PATH)
+	@cp dkms.conf $(DKMS_ROOT_PATH)
+	@cp VERSION $(DKMS_ROOT_PATH)
+	@cp Makefile $(DKMS_ROOT_PATH)
+	@cp asus-wmi-sensors.c $(DKMS_ROOT_PATH)
 	@dkms add -m $(DRIVER) -v $(DRIVER_VERSION)
 	@dkms build -m $(DRIVER) -v $(DRIVER_VERSION)
 	@dkms install --force -m $(DRIVER) -v $(DRIVER_VERSION)
@@ -107,3 +107,4 @@ dkms_clean:
 	fi
 	@dkms remove -m $(DRIVER) -v $(DRIVER_VERSION) --all
 	@rm -rf $(DKMS_ROOT_PATH)
+	@rm -- VERSION dkms.conf
