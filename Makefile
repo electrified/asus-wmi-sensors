@@ -88,6 +88,7 @@ endif
 	depmod -a -F $(SYSTEM_MAP) $(TARGET)
 
 dkms:
+	@cp  `pwd`/dkms.conf.am `pwd`/dkms.conf
 	@sed -i -e '/^PACKAGE_VERSION=/ s/=.*/=\"$(DRIVER_VERSION)\"/' dkms.conf
 	@echo "$(DRIVER_VERSION)" >VERSION
 	@mkdir $(DKMS_ROOT_PATH)
