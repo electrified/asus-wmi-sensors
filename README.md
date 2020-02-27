@@ -92,7 +92,7 @@ Many of Asus' recent Ryzen motherboards have the ITE IT8665E sensor IC, which do
 ### Is it possible to control the speed of fans with this driver?
 No, fan control is not part of the Asus sensors WMI interface. It may be possible via an undocumented method, but that would require reverse engineering effort.
 
-### I am using Ubutu with a Ukuu kernel and the module won't build
+### I am using Ubuntu with a Ukuu kernel and the module won't build
 If you use ukuu, or any other method to install a kernel, you should use the version of GCC used to build the kernel to build any additional out-of-tree modules otherwise you may run into issues.
 
 Check `cat /proc/version` to see the version of GCC used to build the kernel, and upgrade your GCC install appropriately. (Usually an upgrade from GCC 7 to GCC 9 is needed)
