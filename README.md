@@ -56,6 +56,15 @@ Run ```sensors``` and you should see a ```asuswmisensors-isa-0000``` device and 
 ### Gentoo
 An ebuild is available in gyakovlev's overlay. https://github.com/gyakovlev/gentoo-overlay/tree/master/sys-kernel/asus-wmi-sensors
 
+### NixOS
+Available as a package since 20.03 release, could be enabled with:
+
+```
+boot.extraModulePackages = [
+    pkgs.asus-wmi-sensors
+];
+```
+
 ### Other distributions
 
 Clone the git repository: ```git clone https://github.com/electrified/asus-wmi-sensors.git```
