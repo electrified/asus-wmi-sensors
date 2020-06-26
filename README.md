@@ -33,6 +33,7 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 |Board                              |
 |-----------------------------------|
 |X570 boards (no WMI interface - use `nct6775` driver instead)|
+|TRX40 boards (no WMI interface - use `nct6775` driver instead)|
 |Prime B450-Plus|
 |Prime X370-Pro|
 |TUF B450-PLUS GAMING|
