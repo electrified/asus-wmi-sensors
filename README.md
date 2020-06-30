@@ -4,6 +4,8 @@
 
 Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts via ASUS' WMI interface present in the UEFI of some X370/X470/B450/X399 Ryzen motherboards.
 
+**Note: X570/B550/TRX40 boards do not have the WMI interface and are not supported.**
+
 ## Features
 - Reports all values scaled and named identically to in the UEFI interface
 - No sensor configuration required
@@ -33,6 +35,7 @@ Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts 
 |Board                              |
 |-----------------------------------|
 |X570 boards (no WMI interface - use `nct6775` driver instead)|
+|B550 boards (no WMI interface - use `nct6775` driver instead)|
 |TRX40 boards (no WMI interface - use `nct6775` driver instead)|
 |Prime B450-Plus|
 |Prime X370-Pro|
