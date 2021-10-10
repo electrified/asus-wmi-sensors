@@ -49,7 +49,6 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
-#include <linux/platform_device.h>
 #include <linux/units.h>
 #include <linux/wmi.h>
 
@@ -71,7 +70,7 @@
 		}, \
 	}
 
-static const struct dmi_system_id asus_wmi_dmi_table[] __initconst = {
+static const struct dmi_system_id asus_wmi_dmi_table[] = {
 	DMI_EXACT_MATCH_ASUS_BOARD_NAME("PRIME X399-A"),
 	DMI_EXACT_MATCH_ASUS_BOARD_NAME("PRIME X470-PRO"),
 	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG CROSSHAIR VI EXTREME"),
@@ -454,14 +453,13 @@ static struct hwmon_chip_info asus_wmi_chip_info = {
 	.info = NULL,
 };
 
-static int asus_wmi_configure_sensor_setup(struct platform_device *pdev,
+static int asus_wmi_configure_sensor_setup(struct device *dev,
 					   struct asus_wmi_sensors *sensor_data)
 {
 	int err;
 	int i, idx;
 	int nr_count[hwmon_max] = {0}, nr_types = 0;
 	struct device *hwdev;
-	struct device *dev = &pdev->dev;
 	struct hwmon_channel_info *asus_wmi_hwmon_chan;
 	struct asus_wmi_sensor_info *temp_sensor;
 	enum hwmon_sensor_types type;
@@ -556,7 +554,7 @@ static int asus_wmi_configure_sensor_setup(struct platform_device *pdev,
 		}
 	}
 
-	dev_dbg(&pdev->dev, "board has %d sensors",
+	dev_dbg(dev, "board has %d sensors",
 		sensor_data->wmi.sensor_count);
 
 	hwdev = devm_hwmon_device_register_with_info(dev, KBUILD_MODNAME,
@@ -565,11 +563,14 @@ static int asus_wmi_configure_sensor_setup(struct platform_device *pdev,
 	return PTR_ERR_OR_ZERO(hwdev);
 }
 
-static int asus_wmi_probe(struct platform_device *pdev)
+static int asus_wmi_probe(struct wmi_device *wdev, const void *context)
 {
 	struct asus_wmi_sensors *sensor_data;
-	struct device *dev = &pdev->dev;
+	struct device *dev = &wdev->dev;
 	u32 version = 0;
+
+	if (!dmi_check_system(asus_wmi_dmi_table))
+		return -ENODEV;
 
 	sensor_data = devm_kzalloc(dev, sizeof(struct asus_wmi_sensors),
 				   GFP_KERNEL);
@@ -594,41 +595,25 @@ static int asus_wmi_probe(struct platform_device *pdev)
 
 	mutex_init(&sensor_data->lock);
 
-	platform_set_drvdata(pdev, sensor_data);
+	dev_set_drvdata(dev, sensor_data);
 
-	return asus_wmi_configure_sensor_setup(pdev,
+	return asus_wmi_configure_sensor_setup(dev,
 					       sensor_data);
 }
 
-static struct platform_driver asus_wmi_sensors_platform_driver = {
-	.driver = {
-		.name	= "asus-wmi-sensors",
-	},
-	.probe = asus_wmi_probe,
+static const struct wmi_device_id asus_wmi_id_table[] = {
+	{ ASUSWMI_MONITORING_GUID, NULL },
+	{ }
 };
 
-static struct platform_device *sensors_pdev;
-
-static int __init asus_wmi_init(void)
-{
-	if (!dmi_check_system(asus_wmi_dmi_table))
-		return -ENODEV;
-
-	sensors_pdev = platform_create_bundle(&asus_wmi_sensors_platform_driver,
-					      asus_wmi_probe,
-					      NULL, 0,
-					      NULL, 0);
-
-	return PTR_ERR_OR_ZERO(sensors_pdev);
-}
-module_init(asus_wmi_init);
-
-static void __exit asus_wmi_exit(void)
-{
-	platform_device_unregister(sensors_pdev);
-	platform_driver_unregister(&asus_wmi_sensors_platform_driver);
-}
-module_exit(asus_wmi_exit);
+static struct wmi_driver asus_sensors_wmi_driver = {
+	.driver = {
+		.name = KBUILD_MODNAME,
+	},
+	.id_table = asus_wmi_id_table,
+	.probe = asus_wmi_probe,
+};
+module_wmi_driver(asus_sensors_wmi_driver);
 
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
 MODULE_DESCRIPTION("Asus WMI Sensors Driver");
