@@ -3,10 +3,9 @@
  * HWMON driver for ASUS motherboards that provides sensor readouts via WMI
  * interface present in the UEFI of the X370/X470/B450/X399 Ryzen motherboards.
  *
- * Copyright (C) 2021 Eugene Shalygin <eugene.shalygin@gmail.com>
  * Copyright (C) 2018-2019 Ed Brindley <kernel@maidavale.org>
  *
- * WMI interface provided:
+ * WMI interface provides:
  * CPU Core Voltage,
  * CPU SOC Voltage,
  * DRAM Voltage,
@@ -21,15 +20,15 @@
  * CPU Core Voltage,
  * CPU SOC Voltage,
  * DRAM Voltage,
- * CPU Fan,
- * Chassis Fan 1,
- * Chassis Fan 2,
- * Chassis Fan 3,
- * HAMP Fan,
- * Water Pump,
- * CPU OPT,
- * Water Flow,
- * AIO Pump,
+ * CPU Fan RPM,
+ * Chassis Fan 1 RPM,
+ * Chassis Fan 2 RPM,
+ * Chassis Fan 3 RPM,
+ * HAMP Fan RPM,
+ * Water Pump RPM,
+ * CPU OPT RPM,
+ * Water Flow RPM,
+ * AIO Pump RPM,
  * CPU Temperature,
  * CPU Socket Temperature,
  * Motherboard Temperature,
@@ -39,6 +38,7 @@
  * Water In,
  * Water Out,
  * CPU VRM Output Current.
+ *
  */
 #include <linux/acpi.h>
 #include <linux/dmi.h>
@@ -62,24 +62,34 @@
 
 #define ASUS_WMI_MAX_STR_SIZE	32
 
-/* boards with wmi sensors support */
-static const char *const asus_wmi_boards_names[] = {
-	"ROG CROSSHAIR VI HERO",
-	"PRIME X399-A",
-	"PRIME X470-PRO",
-	"ROG CROSSHAIR VI EXTREME",
-	"ROG CROSSHAIR VI HERO (WI-FI AC)",
-	"ROG CROSSHAIR VII HERO",
-	"ROG CROSSHAIR VII HERO (WI-FI)",
-	"ROG STRIX B450-E GAMING",
-	"ROG STRIX B450-F GAMING",
-	"ROG STRIX B450-I GAMING",
-	"ROG STRIX X399-E GAMING",
-	"ROG STRIX X470-F GAMING",
-	"ROG STRIX X470-I GAMING",
-	"ROG ZENITH EXTREME",
-	"ROG ZENITH EXTREME ALPHA",
+#define DMI_EXACT_MATCH_ASUS_BOARD_NAME(name) \
+	{ \
+		.matches = { \
+			DMI_EXACT_MATCH(DMI_BOARD_VENDOR, \
+					"ASUSTeK COMPUTER INC."), \
+			DMI_EXACT_MATCH(DMI_BOARD_NAME, name), \
+		}, \
+	}
+
+static const struct dmi_system_id asus_wmi_dmi_table[] __initconst = {
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("PRIME X399-A"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("PRIME X470-PRO"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG CROSSHAIR VI EXTREME"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG CROSSHAIR VI HERO"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG CROSSHAIR VI HERO (WI-FI AC)"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG CROSSHAIR VII HERO"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG CROSSHAIR VII HERO (WI-FI)"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG STRIX B450-E GAMING"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG STRIX B450-F GAMING"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG STRIX B450-I GAMING"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG STRIX X399-E GAMING"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG STRIX X470-F GAMING"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG STRIX X470-I GAMING"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG ZENITH EXTREME"),
+	DMI_EXACT_MATCH_ASUS_BOARD_NAME("ROG ZENITH EXTREME ALPHA"),
+	{}
 };
+MODULE_DEVICE_TABLE(dmi, asus_wmi_dmi_table);
 
 enum asus_wmi_sensor_class {
 	VOLTAGE = 0x0,
@@ -150,7 +160,7 @@ struct asus_wmi_sensor_info {
 struct asus_wmi_wmi_info {
 	u8 buffer;
 	unsigned long source_last_updated[3];	/* in jiffies */
-	u8 sensor_count;
+	int sensor_count;
 
 	const struct asus_wmi_sensor_info **info[hwmon_max];
 	struct asus_wmi_sensor_info **info_by_id;
@@ -160,13 +170,6 @@ struct asus_wmi_sensors {
 	/* lock access to instrnal cache */
 	struct mutex lock;
 	struct asus_wmi_wmi_info wmi;
-
-	int wmi_board;
-};
-
-struct asus_wmi_data {
-	int wmi_board;
-	int wmi_count;
 };
 
 /*
@@ -405,10 +408,8 @@ static int asus_wmi_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 	sensor = *(sensor_data->wmi.info[type] + channel);
 
 	mutex_lock(&sensor_data->lock);
-
 	ret = asus_wmi_get_cached_value_or_update(sensor, sensor_data, &value);
 	mutex_unlock(&sensor_data->lock);
-
 	if (!ret)
 		*val = asus_wmi_scale_sensor_value(value, sensor->data_type);
 
@@ -555,8 +556,7 @@ static int asus_wmi_configure_sensor_setup(struct platform_device *pdev,
 		}
 	}
 
-	dev_dbg(&pdev->dev, "%s board has %d sensors",
-		asus_wmi_boards_names[sensor_data->wmi_board],
+	dev_dbg(&pdev->dev, "board has %d sensors",
 		sensor_data->wmi.sensor_count);
 
 	hwdev = devm_hwmon_device_register_with_info(dev, KBUILD_MODNAME,
@@ -569,24 +569,35 @@ static int asus_wmi_probe(struct platform_device *pdev)
 {
 	struct asus_wmi_sensors *sensor_data;
 	struct device *dev = &pdev->dev;
-	struct asus_wmi_data *data;
-
-	data = dev_get_platdata(dev);
+	u32 version = 0;
 
 	sensor_data = devm_kzalloc(dev, sizeof(struct asus_wmi_sensors),
 				   GFP_KERNEL);
 	if (!sensor_data)
 		return -ENOMEM;
 
+	if (!wmi_has_guid(ASUSWMI_MONITORING_GUID))
+		return -ENODEV;
+
+	if (asus_wmi_get_version(&version))
+		return -ENODEV;
+
+	if (asus_wmi_get_item_count(&sensor_data->wmi.sensor_count))
+		return -ENODEV;
+
+	if (sensor_data->wmi.sensor_count  <= 0 || version < 2) {
+		dev_info(dev, "version: %u with %d sensors is unsupported\n",
+			 version, sensor_data->wmi.sensor_count);
+
+		return -ENODEV;
+	}
+
 	mutex_init(&sensor_data->lock);
-	sensor_data->wmi_board = data->wmi_board;
-	sensor_data->wmi.sensor_count = data->wmi_count;
 
 	platform_set_drvdata(pdev, sensor_data);
 
 	return asus_wmi_configure_sensor_setup(pdev,
 					       sensor_data);
-	return 0;
 }
 
 static struct platform_driver asus_wmi_sensors_platform_driver = {
@@ -600,49 +611,13 @@ static struct platform_device *sensors_pdev;
 
 static int __init asus_wmi_init(void)
 {
-	const char *board_vendor, *board_name;
-	u32 version = 0;
-	struct asus_wmi_data data;
-
-	data.wmi_board = -1;
-	data.wmi_count = 0;
-
-	board_vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
-	board_name = dmi_get_system_info(DMI_BOARD_NAME);
-
-	if (board_vendor && board_name &&
-	    !strcmp(board_vendor, "ASUSTeK COMPUTER INC.")) {
-		if (!wmi_has_guid(ASUSWMI_MONITORING_GUID))
-			return -ENODEV;
-
-		data.wmi_board = match_string(asus_wmi_boards_names,
-					      ARRAY_SIZE(asus_wmi_boards_names),
-					      board_name);
-
-		if (data.wmi_board >= 0) {
-			if (asus_wmi_get_item_count(&data.wmi_count))
-				return -ENODEV;
-
-			if (asus_wmi_get_version(&version))
-				return -ENODEV;
-
-			if (data.wmi_count  <= 0 || version < 2) {
-				pr_err("Board: %s WMI wmi version: %u with %d sensors is unsupported\n",
-				       board_name, version, data.wmi_count);
-
-				data.wmi_board = -ENODEV;
-			}
-		}
-	}
-
-	/* Nothing to support */
-	if (data.wmi_board < 0)
+	if (!dmi_check_system(asus_wmi_dmi_table))
 		return -ENODEV;
 
 	sensors_pdev = platform_create_bundle(&asus_wmi_sensors_platform_driver,
 					      asus_wmi_probe,
 					      NULL, 0,
-					      &data, sizeof(struct asus_wmi_data));
+					      NULL, 0);
 
 	return PTR_ERR_OR_ZERO(sensors_pdev);
 }
@@ -656,6 +631,5 @@ static void __exit asus_wmi_exit(void)
 module_exit(asus_wmi_exit);
 
 MODULE_AUTHOR("Ed Brindley <kernel@maidavale.org>");
-MODULE_AUTHOR("Eugene Shalygin <eugene.shalygin@gmail.com>");
 MODULE_DESCRIPTION("Asus WMI Sensors Driver");
 MODULE_LICENSE("GPL");
