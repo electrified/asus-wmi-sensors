@@ -176,6 +176,7 @@ struct asus_wmi_sensors {
  */
 static int asus_wmi_call_method(u32 method_id, u32 *args, struct acpi_buffer *output)
 {
+#if IS_ENABLED(CONFIG_ACPI_WMI)
 	struct acpi_buffer input = {(acpi_size) sizeof(*args), args };
 	acpi_status status;
 
@@ -184,6 +185,9 @@ static int asus_wmi_call_method(u32 method_id, u32 *args, struct acpi_buffer *ou
 		return -EIO;
 
 	return 0;
+#else
+	return -EOPNOTSUPP;
+#endif
 }
 
 /*
@@ -436,7 +440,7 @@ static umode_t asus_wmi_hwmon_is_visible(const void *drvdata,
 	const struct asus_wmi_sensors *sensor_data = drvdata;
 
 	sensor = *(sensor_data->wmi.info[type] + channel);
-	if (sensor && sensor->name)
+	if (sensor)
 		return 0444;
 
 	return 0;
@@ -576,9 +580,6 @@ static int asus_wmi_probe(struct wmi_device *wdev, const void *context)
 				   GFP_KERNEL);
 	if (!sensor_data)
 		return -ENOMEM;
-
-	if (!wmi_has_guid(ASUSWMI_MONITORING_GUID))
-		return -ENODEV;
 
 	if (asus_wmi_get_version(&version))
 		return -ENODEV;
