@@ -166,7 +166,7 @@ struct asus_wmi_wmi_info {
 };
 
 struct asus_wmi_sensors {
-	/* lock access to instrnal cache */
+	/* lock access to internal cache */
 	struct mutex lock;
 	struct asus_wmi_wmi_info wmi;
 };
