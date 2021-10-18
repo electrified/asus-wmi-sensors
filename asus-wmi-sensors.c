@@ -52,16 +52,16 @@
 #include <linux/units.h>
 #include <linux/wmi.h>
 
-#define ASUSWMI_MONITORING_GUID		"466747A0-70EC-11DE-8A39-0800200C9A66"
-#define ASUSWMI_METHODID_GET_VALUE	0x52574543
-#define ASUSWMI_METHODID_UPDATE_BUFFER	0x51574543
-#define ASUSWMI_METHODID_GET_INFO	0x50574543
-#define ASUSWMI_METHODID_GET_NUMBER		0x50574572
-#define ASUSWMI_METHODID_GET_VERSION		0x50574574
+#define	ASUSWMI_MONITORING_GUID	"466747A0-70EC-11DE-8A39-0800200C9A66"
+#define	ASUSWMI_METHODID_GET_VALUE	0x52574543
+#define	ASUSWMI_METHODID_UPDATE_BUFFER	0x51574543
+#define	ASUSWMI_METHODID_GET_INFO	0x50574543
+#define	ASUSWMI_METHODID_GET_NUMBER	0x50574572
+#define	ASUSWMI_METHODID_GET_VERSION	0x50574574
 
-#define ASUS_WMI_MAX_STR_SIZE	32
+#define	ASUS_WMI_MAX_STR_SIZE	32
 
-#define DMI_EXACT_MATCH_ASUS_BOARD_NAME(name) \
+#define	DMI_EXACT_MATCH_ASUS_BOARD_NAME(name) \
 	{ \
 		.matches = { \
 			DMI_EXACT_MATCH(DMI_BOARD_VENDOR, \
@@ -176,7 +176,6 @@ struct asus_wmi_sensors {
  */
 static int asus_wmi_call_method(u32 method_id, u32 *args, struct acpi_buffer *output)
 {
-#if IS_ENABLED(CONFIG_ACPI_WMI)
 	struct acpi_buffer input = {(acpi_size) sizeof(*args), args };
 	acpi_status status;
 
@@ -185,9 +184,6 @@ static int asus_wmi_call_method(u32 method_id, u32 *args, struct acpi_buffer *ou
 		return -EIO;
 
 	return 0;
-#else
-	return -EOPNOTSUPP;
-#endif
 }
 
 /*
