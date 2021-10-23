@@ -38,7 +38,6 @@
  * Water In,
  * Water Out,
  * CPU VRM Output Current.
- *
  */
 #include <linux/acpi.h>
 #include <linux/dmi.h>
@@ -52,23 +51,22 @@
 #include <linux/units.h>
 #include <linux/wmi.h>
 
-#define	ASUSWMI_MONITORING_GUID	"466747A0-70EC-11DE-8A39-0800200C9A66"
-#define	ASUSWMI_METHODID_GET_VALUE	0x52574543
-#define	ASUSWMI_METHODID_UPDATE_BUFFER	0x51574543
-#define	ASUSWMI_METHODID_GET_INFO	0x50574543
-#define	ASUSWMI_METHODID_GET_NUMBER	0x50574572
-#define	ASUSWMI_METHODID_GET_VERSION	0x50574574
+#define ASUSWMI_MONITORING_GUID	"466747A0-70EC-11DE-8A39-0800200C9A66"
+#define ASUSWMI_METHODID_GET_VALUE	0x52574543 /* RWEC */
+#define ASUSWMI_METHODID_UPDATE_BUFFER	0x51574543 /* QWEC */
+#define ASUSWMI_METHODID_GET_INFO	0x50574543 /* PWEC */
+#define ASUSWMI_METHODID_GET_NUMBER	0x50574572 /* PWEr */
+#define ASUSWMI_METHODID_GET_VERSION	0x50574574 /* PWEt */
 
-#define	ASUS_WMI_MAX_STR_SIZE	32
+#define ASUS_WMI_MAX_STR_SIZE	32
 
-#define	DMI_EXACT_MATCH_ASUS_BOARD_NAME(name) \
-	{ \
-		.matches = { \
-			DMI_EXACT_MATCH(DMI_BOARD_VENDOR, \
-					"ASUSTeK COMPUTER INC."), \
-			DMI_EXACT_MATCH(DMI_BOARD_NAME, name), \
-		}, \
-	}
+#define DMI_EXACT_MATCH_ASUS_BOARD_NAME(name) {			\
+	.matches = {						\
+		DMI_EXACT_MATCH(DMI_BOARD_VENDOR,		\
+				"ASUSTeK COMPUTER INC."),	\
+		DMI_EXACT_MATCH(DMI_BOARD_NAME, name),		\
+	},							\
+}
 
 static const struct dmi_system_id asus_wmi_dmi_table[] = {
 	DMI_EXACT_MATCH_ASUS_BOARD_NAME("PRIME X399-A"),
@@ -179,7 +177,8 @@ static int asus_wmi_call_method(u32 method_id, u32 *args, struct acpi_buffer *ou
 	struct acpi_buffer input = {(acpi_size) sizeof(*args), args };
 	acpi_status status;
 
-	status = wmi_evaluate_method(ASUSWMI_MONITORING_GUID, 0, method_id, &input, output);
+	status = wmi_evaluate_method(ASUSWMI_MONITORING_GUID, 0,
+				     method_id, &input, output);
 	if (ACPI_FAILURE(status))
 		return -EIO;
 
@@ -313,8 +312,8 @@ static int asus_wmi_sensor_info(int index, struct asus_wmi_sensor_info *s)
 
 static int asus_wmi_update_buffer(u8 source)
 {
-	u32 args[] = {source, 0};
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
+	u32 args[] = {source, 0};
 
 	return asus_wmi_call_method(ASUSWMI_METHODID_UPDATE_BUFFER, args, &output);
 }
@@ -341,10 +340,10 @@ static int asus_wmi_get_sensor_value(u8 index, u32 *value)
 
 static void asus_wmi_update_values_for_source(u8 source, struct asus_wmi_sensors *sensor_data)
 {
-	int ret = 0;
-	int value = 0;
-	int i;
 	struct asus_wmi_sensor_info *sensor;
+	int value = 0;
+	int ret = 0;
+	int i;
 
 	for (i = 0; i < sensor_data->wmi.sensor_count; i++) {
 		sensor = sensor_data->wmi.info_by_id[i];
@@ -361,11 +360,11 @@ static int asus_wmi_scale_sensor_value(u32 value, int data_type)
 	/* FAN_RPM and WATER_FLOW don't need scaling */
 	switch (data_type) {
 	case VOLTAGE:
-		return DIV_ROUND_CLOSEST(value, 1000);
+		return DIV_ROUND_CLOSEST(value,  MILLI);
 	case TEMPERATURE_C:
-		return value * 1000;
+		return value * MILLI;
 	case CURRENT:
-		return value * 1000;
+		return value * MILLI;
 	}
 	return value;
 }
@@ -376,10 +375,14 @@ static int asus_wmi_get_cached_value_or_update(const struct asus_wmi_sensor_info
 {
 	int ret;
 
+	mutex_lock(&sensor_data->lock);
+
 	if (time_after(jiffies, sensor_data->wmi.source_last_updated[sensor->source] + HZ)) {
 		ret = asus_wmi_update_buffer(sensor->source);
-		if (ret)
+		if (ret) {
+			mutex_unlock(&sensor_data->lock);
 			return -EIO;
+		}
 
 		sensor_data->wmi.buffer = sensor->source;
 
@@ -388,27 +391,25 @@ static int asus_wmi_get_cached_value_or_update(const struct asus_wmi_sensor_info
 	}
 
 	*value = sensor->cached_value;
+
+	mutex_unlock(&sensor_data->lock);
+
 	return 0;
 }
 
-/*
- * Now follow the functions that implement the hwmon interface
- */
-
+/* Now follow the functions that implement the hwmon interface */
 static int asus_wmi_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 			       u32 attr, int channel, long *val)
 {
-	int ret;
-	u32 value = 0;
 	const struct asus_wmi_sensor_info *sensor;
+	u32 value = 0;
+	int ret;
 
 	struct asus_wmi_sensors *sensor_data = dev_get_drvdata(dev);
 
 	sensor = *(sensor_data->wmi.info[type] + channel);
 
-	mutex_lock(&sensor_data->lock);
 	ret = asus_wmi_get_cached_value_or_update(sensor, sensor_data, &value);
-	mutex_unlock(&sensor_data->lock);
 	if (!ret)
 		*val = asus_wmi_scale_sensor_value(value, sensor->data_type);
 
@@ -419,8 +420,8 @@ static int asus_wmi_hwmon_read_string(struct device *dev,
 				      enum hwmon_sensor_types type, u32 attr,
 				      int channel, const char **str)
 {
-	const struct asus_wmi_sensor_info *sensor;
 	struct asus_wmi_sensors *sensor_data = dev_get_drvdata(dev);
+	const struct asus_wmi_sensor_info *sensor;
 
 	sensor = *(sensor_data->wmi.info[type] + channel);
 	*str = sensor->name;
@@ -432,8 +433,8 @@ static umode_t asus_wmi_hwmon_is_visible(const void *drvdata,
 					 enum hwmon_sensor_types type, u32 attr,
 					 int channel)
 {
-	const struct asus_wmi_sensor_info *sensor;
 	const struct asus_wmi_sensors *sensor_data = drvdata;
+	const struct asus_wmi_sensor_info *sensor;
 
 	sensor = *(sensor_data->wmi.info[type] + channel);
 	if (sensor)
@@ -456,15 +457,15 @@ static struct hwmon_chip_info asus_wmi_chip_info = {
 static int asus_wmi_configure_sensor_setup(struct device *dev,
 					   struct asus_wmi_sensors *sensor_data)
 {
-	int err;
-	int i, idx;
-	int nr_count[hwmon_max] = {0}, nr_types = 0;
-	struct device *hwdev;
-	struct hwmon_channel_info *asus_wmi_hwmon_chan;
-	struct asus_wmi_sensor_info *temp_sensor;
-	enum hwmon_sensor_types type;
 	const struct hwmon_channel_info **ptr_asus_wmi_ci;
+	struct hwmon_channel_info *asus_wmi_hwmon_chan;
+	int nr_count[hwmon_max] = {}, nr_types = 0;
+	struct asus_wmi_sensor_info *temp_sensor;
 	const struct hwmon_chip_info *chip_info;
+	enum hwmon_sensor_types type;
+	struct device *hwdev;
+	int i, idx;
+	int err;
 
 	sensor_data->wmi.buffer = -1;
 	temp_sensor = devm_kcalloc(dev, 1, sizeof(*temp_sensor), GFP_KERNEL);
@@ -531,7 +532,7 @@ static int asus_wmi_configure_sensor_setup(struct device *dev,
 			return -ENOMEM;
 	}
 
-	for (i = sensor_data->wmi.sensor_count - 1; i >= 0 ; i--) {
+	for (i = sensor_data->wmi.sensor_count - 1; i >= 0; i--) {
 		temp_sensor = devm_kzalloc(dev, sizeof(*temp_sensor), GFP_KERNEL);
 		if (!temp_sensor)
 			return -ENOMEM;
@@ -557,7 +558,7 @@ static int asus_wmi_configure_sensor_setup(struct device *dev,
 	dev_dbg(dev, "board has %d sensors",
 		sensor_data->wmi.sensor_count);
 
-	hwdev = devm_hwmon_device_register_with_info(dev, KBUILD_MODNAME,
+	hwdev = devm_hwmon_device_register_with_info(dev, "asus_wmi_sensors",
 						     sensor_data, chip_info, NULL);
 
 	return PTR_ERR_OR_ZERO(hwdev);
@@ -572,8 +573,7 @@ static int asus_wmi_probe(struct wmi_device *wdev, const void *context)
 	if (!dmi_check_system(asus_wmi_dmi_table))
 		return -ENODEV;
 
-	sensor_data = devm_kzalloc(dev, sizeof(struct asus_wmi_sensors),
-				   GFP_KERNEL);
+	sensor_data = devm_kzalloc(dev, sizeof(*sensor_data), GFP_KERNEL);
 	if (!sensor_data)
 		return -ENOMEM;
 
@@ -594,8 +594,7 @@ static int asus_wmi_probe(struct wmi_device *wdev, const void *context)
 
 	dev_set_drvdata(dev, sensor_data);
 
-	return asus_wmi_configure_sensor_setup(dev,
-					       sensor_data);
+	return asus_wmi_configure_sensor_setup(dev, sensor_data);
 }
 
 static const struct wmi_device_id asus_wmi_id_table[] = {
@@ -605,7 +604,7 @@ static const struct wmi_device_id asus_wmi_id_table[] = {
 
 static struct wmi_driver asus_sensors_wmi_driver = {
 	.driver = {
-		.name = KBUILD_MODNAME,
+		.name = "asus_wmi_sensors",
 	},
 	.id_table = asus_wmi_id_table,
 	.probe = asus_wmi_probe,
