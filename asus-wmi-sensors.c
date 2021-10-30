@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0+
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * HWMON driver for ASUS motherboards that provides sensor readouts via WMI
  * interface present in the UEFI of the X370/X470/B450/X399 Ryzen motherboards.
@@ -6,43 +6,42 @@
  * Copyright (C) 2018-2019 Ed Brindley <kernel@maidavale.org>
  *
  * WMI interface provides:
- * CPU Core Voltage,
- * CPU SOC Voltage,
- * DRAM Voltage,
- * VDDP Voltage,
- * 1.8V PLL Voltage,
- * +12V Voltage,
- * +5V Voltage,
- * 3VSB Voltage,
- * VBAT Voltage,
- * AVCC3 Voltage,
- * SB 1.05V Voltage,
- * CPU Core Voltage,
- * CPU SOC Voltage,
- * DRAM Voltage,
- * CPU Fan RPM,
- * Chassis Fan 1 RPM,
- * Chassis Fan 2 RPM,
- * Chassis Fan 3 RPM,
- * HAMP Fan RPM,
- * Water Pump RPM,
- * CPU OPT RPM,
- * Water Flow RPM,
- * AIO Pump RPM,
- * CPU Temperature,
- * CPU Socket Temperature,
- * Motherboard Temperature,
- * Chipset Temperature,
- * Tsensor 1 Temperature,
- * CPU VRM Temperature,
- * Water In,
- * Water Out,
- * CPU VRM Output Current.
+ * - CPU Core Voltage,
+ * - CPU SOC Voltage,
+ * - DRAM Voltage,
+ * - VDDP Voltage,
+ * - 1.8V PLL Voltage,
+ * - +12V Voltage,
+ * - +5V Voltage,
+ * - 3VSB Voltage,
+ * - VBAT Voltage,
+ * - AVCC3 Voltage,
+ * - SB 1.05V Voltage,
+ * - CPU Core Voltage,
+ * - CPU SOC Voltage,
+ * - DRAM Voltage,
+ * - CPU Fan RPM,
+ * - Chassis Fan 1 RPM,
+ * - Chassis Fan 2 RPM,
+ * - Chassis Fan 3 RPM,
+ * - HAMP Fan RPM,
+ * - Water Pump RPM,
+ * - CPU OPT RPM,
+ * - Water Flow RPM,
+ * - AIO Pump RPM,
+ * - CPU Temperature,
+ * - CPU Socket Temperature,
+ * - Motherboard Temperature,
+ * - Chipset Temperature,
+ * - Tsensor 1 Temperature,
+ * - CPU VRM Temperature,
+ * - Water In,
+ * - Water Out,
+ * - CPU VRM Output Current.
  */
+
 #include <linux/acpi.h>
 #include <linux/dmi.h>
-#include <linux/hwmon.h>
-#include <linux/hwmon-sysfs.h>
 #include <linux/init.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
@@ -51,21 +50,23 @@
 #include <linux/units.h>
 #include <linux/wmi.h>
 
-#define ASUSWMI_MONITORING_GUID	"466747A0-70EC-11DE-8A39-0800200C9A66"
+#include <linux/hwmon.h>
+#include <linux/hwmon-sysfs.h>
+
+#define ASUSWMI_MONITORING_GUID		"466747A0-70EC-11DE-8A39-0800200C9A66"
 #define ASUSWMI_METHODID_GET_VALUE	0x52574543 /* RWEC */
 #define ASUSWMI_METHODID_UPDATE_BUFFER	0x51574543 /* QWEC */
 #define ASUSWMI_METHODID_GET_INFO	0x50574543 /* PWEC */
 #define ASUSWMI_METHODID_GET_NUMBER	0x50574572 /* PWEr */
 #define ASUSWMI_METHODID_GET_VERSION	0x50574574 /* PWEt */
 
-#define ASUS_WMI_MAX_STR_SIZE	32
+#define ASUS_WMI_MAX_STR_SIZE		32
 
-#define DMI_EXACT_MATCH_ASUS_BOARD_NAME(name) {			\
-	.matches = {						\
-		DMI_EXACT_MATCH(DMI_BOARD_VENDOR,		\
-				"ASUSTeK COMPUTER INC."),	\
-		DMI_EXACT_MATCH(DMI_BOARD_NAME, name),		\
-	},							\
+#define DMI_EXACT_MATCH_ASUS_BOARD_NAME(name) {					\
+	.matches = {								\
+		DMI_EXACT_MATCH(DMI_BOARD_VENDOR, "ASUSTeK COMPUTER INC."),	\
+		DMI_EXACT_MATCH(DMI_BOARD_NAME, name),				\
+	},									\
 }
 
 static const struct dmi_system_id asus_wmi_dmi_table[] = {
@@ -89,49 +90,49 @@ static const struct dmi_system_id asus_wmi_dmi_table[] = {
 MODULE_DEVICE_TABLE(dmi, asus_wmi_dmi_table);
 
 enum asus_wmi_sensor_class {
-	VOLTAGE = 0x0,
-	TEMPERATURE_C = 0x1,
-	FAN_RPM = 0x2,
-	CURRENT = 0x3,
-	WATER_FLOW = 0x4,
+	VOLTAGE		= 0x0,
+	TEMPERATURE_C	= 0x1,
+	FAN_RPM		= 0x2,
+	CURRENT		= 0x3,
+	WATER_FLOW	= 0x4,
 };
 
 enum asus_wmi_location {
-	CPU = 0x0,
-	CPU_SOC = 0x1,
-	DRAM = 0x2,
-	MOTHERBOARD = 0x3,
-	CHIPSET = 0x4,
-	AUX = 0x5,
-	VRM = 0x6,
-	COOLER = 0x7
+	CPU		= 0x0,
+	CPU_SOC		= 0x1,
+	DRAM		= 0x2,
+	MOTHERBOARD	= 0x3,
+	CHIPSET		= 0x4,
+	AUX		= 0x5,
+	VRM		= 0x6,
+	COOLER		= 0x7
 };
 
 enum asus_wmi_type {
-	SIGNED_INT = 0x0,
-	UNSIGNED_INT = 0x1,
-	SCALED = 0x3,
+	SIGNED_INT	= 0x0,
+	UNSIGNED_INT	= 0x1,
+	SCALED		= 0x3,
 };
 
 enum asus_wmi_source {
-	SIO = 0x1,
-	EC = 0x2
+	SIO		= 0x1,
+	EC		= 0x2
 };
 
 static enum hwmon_sensor_types asus_data_types[] = {
-	[VOLTAGE] = hwmon_in,
-	[TEMPERATURE_C] = hwmon_temp,
-	[FAN_RPM] = hwmon_fan,
-	[CURRENT] = hwmon_curr,
-	[WATER_FLOW] = hwmon_fan,
+	[VOLTAGE]	= hwmon_in,
+	[TEMPERATURE_C]	= hwmon_temp,
+	[FAN_RPM]	= hwmon_fan,
+	[CURRENT]	= hwmon_curr,
+	[WATER_FLOW]	= hwmon_fan,
 };
 
 static u32 hwmon_attributes[] = {
-	[hwmon_chip] = HWMON_C_REGISTER_TZ,
-	[hwmon_temp] = HWMON_T_INPUT | HWMON_T_LABEL,
-	[hwmon_in] = HWMON_I_INPUT | HWMON_I_LABEL,
-	[hwmon_curr] = HWMON_C_INPUT | HWMON_C_LABEL,
-	[hwmon_fan] = HWMON_F_INPUT | HWMON_F_LABEL,
+	[hwmon_chip]	= HWMON_C_REGISTER_TZ,
+	[hwmon_temp]	= HWMON_T_INPUT | HWMON_T_LABEL,
+	[hwmon_in]	= HWMON_I_INPUT | HWMON_I_LABEL,
+	[hwmon_curr]	= HWMON_C_INPUT | HWMON_C_LABEL,
+	[hwmon_fan]	= HWMON_F_INPUT | HWMON_F_LABEL,
 };
 
 /**
@@ -164,9 +165,9 @@ struct asus_wmi_wmi_info {
 };
 
 struct asus_wmi_sensors {
+	struct asus_wmi_wmi_info wmi;
 	/* lock access to internal cache */
 	struct mutex lock;
-	struct asus_wmi_wmi_info wmi;
 };
 
 /*
@@ -200,12 +201,19 @@ static int asus_wmi_get_version(u32 *version)
 		return err;
 
 	obj = output.pointer;
-	if (!obj || obj->type != ACPI_TYPE_INTEGER)
+	if (!obj)
 		return -EIO;
 
+	err = -EIO;
+	if (obj->type != ACPI_TYPE_INTEGER)
+		goto out_free_obj;
+
+	err = 0;
 	*version = obj->integer.value;
 
-	return 0;
+out_free_obj:
+	ACPI_FREE(obj);
+	return err;
 }
 
 /*
@@ -223,12 +231,19 @@ static int asus_wmi_get_item_count(u32 *count)
 		return err;
 
 	obj = output.pointer;
-	if (!obj || obj->type != ACPI_TYPE_INTEGER)
+	if (!obj)
 		return -EIO;
 
+	err = -EIO;
+	if (obj->type != ACPI_TYPE_INTEGER)
+		goto out_free_obj;
+
+	err = 0;
 	*count = obj->integer.value;
 
-	return 0;
+out_free_obj:
+	ACPI_FREE(obj);
+	return err;
 }
 
 static int asus_wmi_hwmon_add_chan_info(struct hwmon_channel_info *asus_wmi_hwmon_chan,
@@ -266,48 +281,55 @@ static int asus_wmi_sensor_info(int index, struct asus_wmi_sensor_info *s)
 	s->id = index;
 
 	obj = output.pointer;
-	if (!obj || obj->type != ACPI_TYPE_PACKAGE)
+	if (!obj)
 		return -EIO;
 
+	err = -EIO;
+	if (obj->type != ACPI_TYPE_PACKAGE)
+		goto out_free_obj;
+
 	if (obj->package.count != 5)
-		return 1;
+		goto out_free_obj;
 
 	name_obj = obj->package.elements[0];
 
 	if (name_obj.type != ACPI_TYPE_STRING)
-		return 1;
+		goto out_free_obj;
 
 	strncpy(s->name, name_obj.string.pointer, sizeof(s->name) - 1);
 
 	data_type_obj = obj->package.elements[1];
 
 	if (data_type_obj.type != ACPI_TYPE_INTEGER)
-		return 1;
+		goto out_free_obj;
 
 	s->data_type = data_type_obj.integer.value;
 
 	location_obj = obj->package.elements[2];
 
 	if (location_obj.type != ACPI_TYPE_INTEGER)
-		return 1;
+		goto out_free_obj;
 
 	s->location = location_obj.integer.value;
 
 	source_obj = obj->package.elements[3];
 
 	if (source_obj.type != ACPI_TYPE_INTEGER)
-		return 1;
+		goto out_free_obj;
 
 	s->source = source_obj.integer.value;
 
 	type_obj = obj->package.elements[4];
 
 	if (type_obj.type != ACPI_TYPE_INTEGER)
-		return 1;
+		goto out_free_obj;
 
+	err = 0;
 	s->type = type_obj.integer.value;
 
-	return 0;
+out_free_obj:
+	ACPI_FREE(obj);
+	return err;
 }
 
 static int asus_wmi_update_buffer(u8 source)
@@ -330,15 +352,22 @@ static int asus_wmi_get_sensor_value(u8 index, u32 *value)
 		return err;
 
 	obj = output.pointer;
-	if (!obj || obj->type != ACPI_TYPE_INTEGER)
+	if (!obj)
 		return -EIO;
 
+	err = -EIO;
+	if (obj->type != ACPI_TYPE_INTEGER)
+		goto out_free_obj;
+
+	err = 0;
 	*value = obj->integer.value;
 
-	return 0;
+out_free_obj:
+	ACPI_FREE(obj);
+	return err;
 }
 
-static void asus_wmi_update_values_for_source(u8 source, struct asus_wmi_sensors *sensor_data)
+static int asus_wmi_update_values_for_source(u8 source, struct asus_wmi_sensors *sensor_data)
 {
 	struct asus_wmi_sensor_info *sensor;
 	int value = 0;
@@ -349,10 +378,14 @@ static void asus_wmi_update_values_for_source(u8 source, struct asus_wmi_sensors
 		sensor = sensor_data->wmi.info_by_id[i];
 		if (sensor && sensor->source == source) {
 			ret = asus_wmi_get_sensor_value(sensor->id, &value);
-			if (!ret)
-				sensor->cached_value = value;
+			if (ret)
+				return ret;
+
+			sensor->cached_value = value;
 		}
 	}
+
+	return 0;
 }
 
 static int asus_wmi_scale_sensor_value(u32 value, int data_type)
@@ -360,10 +393,13 @@ static int asus_wmi_scale_sensor_value(u32 value, int data_type)
 	/* FAN_RPM and WATER_FLOW don't need scaling */
 	switch (data_type) {
 	case VOLTAGE:
-		return DIV_ROUND_CLOSEST(value,  MILLI);
+		/* value in microVolts */
+		return DIV_ROUND_CLOSEST(value,  KILO);
 	case TEMPERATURE_C:
-		return value * MILLI;
+		/* value in Celsius */
+		return value * MILLIDEGREE_PER_DEGREE;
 	case CURRENT:
+		/* value in Amperes */
 		return value * MILLI;
 	}
 	return value;
@@ -379,22 +415,24 @@ static int asus_wmi_get_cached_value_or_update(const struct asus_wmi_sensor_info
 
 	if (time_after(jiffies, sensor_data->wmi.source_last_updated[sensor->source] + HZ)) {
 		ret = asus_wmi_update_buffer(sensor->source);
-		if (ret) {
-			mutex_unlock(&sensor_data->lock);
-			return -EIO;
-		}
+		if (ret)
+			goto unlock;
 
 		sensor_data->wmi.buffer = sensor->source;
 
-		asus_wmi_update_values_for_source(sensor->source, sensor_data);
+		ret = asus_wmi_update_values_for_source(sensor->source, sensor_data);
+		if (ret)
+			goto unlock;
+
 		sensor_data->wmi.source_last_updated[sensor->source] = jiffies;
 	}
 
 	*value = sensor->cached_value;
 
+unlock:
 	mutex_unlock(&sensor_data->lock);
 
-	return 0;
+	return ret;
 }
 
 /* Now follow the functions that implement the hwmon interface */
@@ -475,7 +513,7 @@ static int asus_wmi_configure_sensor_setup(struct device *dev,
 	for (i = 0; i < sensor_data->wmi.sensor_count; i++) {
 		err = asus_wmi_sensor_info(i, temp_sensor);
 		if (err)
-			return -EINVAL;
+			return err;
 
 		switch (temp_sensor->data_type) {
 		case TEMPERATURE_C:
@@ -519,9 +557,12 @@ static int asus_wmi_configure_sensor_setup(struct device *dev,
 		if (!nr_count[type])
 			continue;
 
-		asus_wmi_hwmon_add_chan_info(asus_wmi_hwmon_chan, dev,
-					     nr_count[type], type,
-					     hwmon_attributes[type]);
+		err = asus_wmi_hwmon_add_chan_info(asus_wmi_hwmon_chan, dev,
+						   nr_count[type], type,
+						   hwmon_attributes[type]);
+		if (err)
+			return err;
+
 		*ptr_asus_wmi_ci++ = asus_wmi_hwmon_chan++;
 
 		sensor_data->wmi.info[type] = devm_kcalloc(dev,
