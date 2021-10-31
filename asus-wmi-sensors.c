@@ -42,6 +42,7 @@
 
 #include <linux/acpi.h>
 #include <linux/dmi.h>
+#include <linux/hwmon.h>
 #include <linux/init.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
@@ -49,9 +50,6 @@
 #include <linux/mutex.h>
 #include <linux/units.h>
 #include <linux/wmi.h>
-
-#include <linux/hwmon.h>
-#include <linux/hwmon-sysfs.h>
 
 #define ASUSWMI_MONITORING_GUID		"466747A0-70EC-11DE-8A39-0800200C9A66"
 #define ASUSWMI_METHODID_GET_VALUE	0x52574543 /* RWEC */
@@ -152,11 +150,10 @@ struct asus_wmi_sensor_info {
 	char name[ASUS_WMI_MAX_STR_SIZE];
 	int source;
 	int type;
-	u32 cached_value;
+	long cached_value;
 };
 
 struct asus_wmi_wmi_info {
-	u8 buffer;
 	unsigned long source_last_updated[3];	/* in jiffies */
 	int sensor_count;
 
@@ -204,9 +201,10 @@ static int asus_wmi_get_version(u32 *version)
 	if (!obj)
 		return -EIO;
 
-	err = -EIO;
-	if (obj->type != ACPI_TYPE_INTEGER)
+	if (obj->type != ACPI_TYPE_INTEGER) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	err = 0;
 	*version = obj->integer.value;
@@ -234,9 +232,10 @@ static int asus_wmi_get_item_count(u32 *count)
 	if (!obj)
 		return -EIO;
 
-	err = -EIO;
-	if (obj->type != ACPI_TYPE_INTEGER)
+	if (obj->type != ACPI_TYPE_INTEGER) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	err = 0;
 	*count = obj->integer.value;
@@ -284,45 +283,53 @@ static int asus_wmi_sensor_info(int index, struct asus_wmi_sensor_info *s)
 	if (!obj)
 		return -EIO;
 
-	err = -EIO;
-	if (obj->type != ACPI_TYPE_PACKAGE)
+	if (obj->type != ACPI_TYPE_PACKAGE) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
-	if (obj->package.count != 5)
+	if (obj->package.count != 5) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	name_obj = obj->package.elements[0];
-
-	if (name_obj.type != ACPI_TYPE_STRING)
+	if (name_obj.type != ACPI_TYPE_STRING) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	strncpy(s->name, name_obj.string.pointer, sizeof(s->name) - 1);
 
 	data_type_obj = obj->package.elements[1];
-
-	if (data_type_obj.type != ACPI_TYPE_INTEGER)
+	if (data_type_obj.type != ACPI_TYPE_INTEGER) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	s->data_type = data_type_obj.integer.value;
 
 	location_obj = obj->package.elements[2];
-
-	if (location_obj.type != ACPI_TYPE_INTEGER)
+	if (location_obj.type != ACPI_TYPE_INTEGER) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	s->location = location_obj.integer.value;
 
 	source_obj = obj->package.elements[3];
-
-	if (source_obj.type != ACPI_TYPE_INTEGER)
+	if (source_obj.type != ACPI_TYPE_INTEGER) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	s->source = source_obj.integer.value;
 
 	type_obj = obj->package.elements[4];
-
-	if (type_obj.type != ACPI_TYPE_INTEGER)
+	if (type_obj.type != ACPI_TYPE_INTEGER) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	err = 0;
 	s->type = type_obj.integer.value;
@@ -332,7 +339,7 @@ out_free_obj:
 	return err;
 }
 
-static int asus_wmi_update_buffer(u8 source)
+static int asus_wmi_update_buffer(int source)
 {
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
 	u32 args[] = {source, 0};
@@ -340,7 +347,7 @@ static int asus_wmi_update_buffer(u8 source)
 	return asus_wmi_call_method(ASUSWMI_METHODID_UPDATE_BUFFER, args, &output);
 }
 
-static int asus_wmi_get_sensor_value(u8 index, u32 *value)
+static int asus_wmi_get_sensor_value(u8 index, long *value)
 {
 	struct acpi_buffer output = { ACPI_ALLOCATE_BUFFER, NULL };
 	u32 args[] = {index, 0};
@@ -355,9 +362,10 @@ static int asus_wmi_get_sensor_value(u8 index, u32 *value)
 	if (!obj)
 		return -EIO;
 
-	err = -EIO;
-	if (obj->type != ACPI_TYPE_INTEGER)
+	if (obj->type != ACPI_TYPE_INTEGER) {
+		err = -EIO;
 		goto out_free_obj;
+	}
 
 	err = 0;
 	*value = obj->integer.value;
@@ -370,8 +378,8 @@ out_free_obj:
 static int asus_wmi_update_values_for_source(u8 source, struct asus_wmi_sensors *sensor_data)
 {
 	struct asus_wmi_sensor_info *sensor;
-	int value = 0;
-	int ret = 0;
+	long value = 0;
+	int ret;
 	int i;
 
 	for (i = 0; i < sensor_data->wmi.sensor_count; i++) {
@@ -409,7 +417,7 @@ static int asus_wmi_get_cached_value_or_update(const struct asus_wmi_sensor_info
 					       struct asus_wmi_sensors *sensor_data,
 					       u32 *value)
 {
-	int ret;
+	int ret = 0;
 
 	mutex_lock(&sensor_data->lock);
 
@@ -417,8 +425,6 @@ static int asus_wmi_get_cached_value_or_update(const struct asus_wmi_sensor_info
 		ret = asus_wmi_update_buffer(sensor->source);
 		if (ret)
 			goto unlock;
-
-		sensor_data->wmi.buffer = sensor->source;
 
 		ret = asus_wmi_update_values_for_source(sensor->source, sensor_data);
 		if (ret)
@@ -448,8 +454,10 @@ static int asus_wmi_hwmon_read(struct device *dev, enum hwmon_sensor_types type,
 	sensor = *(sensor_data->wmi.info[type] + channel);
 
 	ret = asus_wmi_get_cached_value_or_update(sensor, sensor_data, &value);
-	if (!ret)
-		*val = asus_wmi_scale_sensor_value(value, sensor->data_type);
+	if (ret)
+		return ret;
+
+	*val = asus_wmi_scale_sensor_value(value, sensor->data_type);
 
 	return ret;
 }
@@ -505,7 +513,6 @@ static int asus_wmi_configure_sensor_setup(struct device *dev,
 	int i, idx;
 	int err;
 
-	sensor_data->wmi.buffer = -1;
 	temp_sensor = devm_kcalloc(dev, 1, sizeof(*temp_sensor), GFP_KERNEL);
 	if (!temp_sensor)
 		return -ENOMEM;
