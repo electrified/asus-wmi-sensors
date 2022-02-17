@@ -1,5 +1,12 @@
 # Linux ASUS WMI Sensor driver
 
+This patch has now been integrated with the main kernel tree thanks to Denis Pauk, and will be available in Kernel 5.17
+
+See https://patchwork.kernel.org/project/linux-hwmon/list/?submitter=201979&archive=both&state=*
+post on LKML with "Update ASUS WMI supported boards" in the subject line and posts in https://bugzilla.kernel.org/attachment.cgi?id=299111
+
+The changes made during the kernel review process have been backported into this repo
+
 ## General info
 
 Provides a Linux kernel module "asus_wmi_sensors" that provides sensor readouts via ASUS' WMI interface present in the UEFI of some X370/X470/B450/X399 Ryzen motherboards.
