@@ -1,6 +1,7 @@
 # Linux ASUS WMI Sensor driver
 
-This patch has now been integrated with the main kernel tree thanks to Denis Pauk, and will be available in Kernel 5.17
+## This driver has been integrated into the kernel mainline as of version 5.17 :smiley:
+Thanks to @0lvin this driver has been merged into the kernel mainline. https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/hwmon/asus_wmi_sensors.c?h=v5.17
 
 See https://patchwork.kernel.org/project/linux-hwmon/list/?submitter=201979&archive=both&state=*
 post on LKML with "Update ASUS WMI supported boards" in the subject line and posts in https://bugzilla.kernel.org/attachment.cgi?id=299111
