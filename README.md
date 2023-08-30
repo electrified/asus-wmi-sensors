@@ -67,8 +67,8 @@ An ebuild is available in gyakovlev's overlay. https://github.com/gyakovlev/gent
 Available as a package since 20.03 release, could be enabled with:
 
 ```
-boot.extraModulePackages = [
-    pkgs.asus-wmi-sensors
+boot.extraModulePackages = with config.boot.kernelPackages; [
+    asus-wmi-sensors
 ];
 ```
 
